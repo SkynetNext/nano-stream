@@ -1,0 +1,21 @@
+CompileFlags:
+  Add:
+    - -std=c++20
+    - -I./include
+    - -I./third_party/googletest/googletest/include
+    - -I./third_party/benchmark/include
+    - -Wall
+    - -Wextra
+    - -D_WIN32
+    - -D_DLL
+    - -D_MT
+  Remove:
+    - -march=native
+    - -mtune=native
+
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+
+Index:
+  Background: Build

@@ -1,41 +1,74 @@
-# Prerequisites
-*.d
+# Build directories
+build/
+out/
+cmake-build-*/
+ref/
+.cache/
 
-# Compiled Object files
-*.slo
-*.lo
+# IDE files
+.vscode/
+.idea/
+*.suo
+*.vcxproj.user
+*.sln.docstates
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.dylib
+
+# Object files
 *.o
 *.obj
 
-# Precompiled Headers
-*.gch
-*.pch
+# Coverage files
+*.gcda
+*.gcno
+*.gcov
+coverage.xml
+coverage.info
 
-# Linker files
-*.ilk
+# Profiling files
+*.prof
+gmon.out
 
-# Debugger Files
-*.pdb
+# Temporary files
+*.tmp
+*.temp
+*~
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Fortran module files
-*.mod
-*.smod
+# Package managers
+conan.lock
+vcpkg_installed/
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
 
-# Executables
-*.exe
-*.out
-*.app
+# Visual Studio
+*.vcxproj.filters
+*.vcxproj.user
+.vs/
 
-# debug information files
-*.dwo
+# Clang
+compile_commands.json
+
+# Documentation
+docs/html/
+docs/latex/
+ai-code-guide.txt
