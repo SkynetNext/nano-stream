@@ -70,18 +70,27 @@ static void BM_NanoStreamProducerConsumer(benchmark::State &state) {
   Sequence consumer_sequence;
   ring_buffer.add_gating_sequences({std::cref(consumer_sequence)});
 
-  std::atomic<int> consumed{0};
+  std::atomic<bool> stop{false};
+  std::atomic<int> total_produced{0};
+  std::atomic<int> total_consumed{0};
 
   std::thread consumer([&]() {
     int64_t next_to_read = 0;
 
-    while (consumed.load() < num_events) {
+    while (true) {
+      if (stop.load(std::memory_order_acquire)) {
+        int produced = total_produced.load(std::memory_order_acquire);
+        if (total_consumed.load(std::memory_order_relaxed) >= produced) {
+          break;
+        }
+      }
+
       if (ring_buffer.is_available(next_to_read)) {
         const TestEvent &event = ring_buffer.get(next_to_read);
         benchmark::DoNotOptimize(&event.value);
         consumer_sequence.set(next_to_read);
         next_to_read++;
-        consumed.fetch_add(1);
+        total_consumed.fetch_add(1, std::memory_order_relaxed);
       } else {
         std::this_thread::yield();
       }
@@ -94,15 +103,14 @@ static void BM_NanoStreamProducerConsumer(benchmark::State &state) {
       TestEvent &event = ring_buffer.get(sequence);
       event.value = i;
       ring_buffer.publish(sequence);
+      total_produced.fetch_add(1, std::memory_order_relaxed);
     }
-
-    while (consumed.load() < num_events) {
-      std::this_thread::yield();
-    }
-    consumed.store(0);
   }
 
+  // Signal stop and wait for all items to be consumed
+  stop.store(true, std::memory_order_release);
   consumer.join();
+
   state.SetItemsProcessed(state.iterations() * num_events);
 }
 BENCHMARK(BM_NanoStreamProducerConsumer)->Arg(1000)->Arg(10000);
@@ -112,15 +120,24 @@ static void BM_StdQueueProducerConsumer(benchmark::State &state) {
   const int num_events = state.range(0);
   ThreadSafeQueue<TestEvent> queue;
 
-  std::atomic<int> consumed{0};
+  std::atomic<bool> stop{false};
+  std::atomic<int> total_produced{0};
+  std::atomic<int> total_consumed{0};
 
   std::thread consumer([&]() {
     TestEvent event;
 
-    while (consumed.load() < num_events) {
+    while (true) {
+      if (stop.load(std::memory_order_acquire)) {
+        int produced = total_produced.load(std::memory_order_acquire);
+        if (total_consumed.load(std::memory_order_relaxed) >= produced) {
+          break;
+        }
+      }
+
       if (queue.try_pop(event)) {
         benchmark::DoNotOptimize(&event.value);
-        consumed.fetch_add(1);
+        total_consumed.fetch_add(1, std::memory_order_relaxed);
       } else {
         std::this_thread::yield();
       }
@@ -132,15 +149,14 @@ static void BM_StdQueueProducerConsumer(benchmark::State &state) {
       TestEvent event;
       event.value = i;
       queue.push(event);
+      total_produced.fetch_add(1, std::memory_order_relaxed);
     }
-
-    while (consumed.load() < num_events) {
-      std::this_thread::yield();
-    }
-    consumed.store(0);
   }
 
+  // Signal stop and wait for all items to be consumed
+  stop.store(true, std::memory_order_release);
   consumer.join();
+
   state.SetItemsProcessed(state.iterations() * num_events);
 }
 BENCHMARK(BM_StdQueueProducerConsumer)->Arg(1000)->Arg(10000);

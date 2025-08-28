@@ -92,19 +92,28 @@ static void BM_RingBufferProducerConsumer(benchmark::State &state) {
   ring_buffer.add_gating_sequences({std::cref(consumer_sequence)});
 
   std::atomic<bool> stop{false};
+  std::atomic<int64_t> produced_count{0};
   std::atomic<int64_t> consumed_count{0};
 
   // Consumer thread
   std::thread consumer([&]() {
     int64_t next_to_read = 0;
 
-    while (!stop.load() || next_to_read <= ring_buffer.get_cursor()) {
+    while (true) {
+      // Check if we should stop and have consumed all produced items
+      if (stop.load(std::memory_order_acquire)) {
+        int64_t total_produced = produced_count.load(std::memory_order_acquire);
+        if (consumed_count.load(std::memory_order_relaxed) >= total_produced) {
+          break;
+        }
+      }
+
       if (ring_buffer.is_available(next_to_read)) {
         const BenchmarkEvent &event = ring_buffer.get(next_to_read);
         benchmark::DoNotOptimize(&event.value);
         consumer_sequence.set(next_to_read);
         next_to_read++;
-        consumed_count.fetch_add(1);
+        consumed_count.fetch_add(1, std::memory_order_relaxed);
       } else {
         std::this_thread::yield();
       }
@@ -118,14 +127,18 @@ static void BM_RingBufferProducerConsumer(benchmark::State &state) {
     BenchmarkEvent &event = ring_buffer.get(sequence);
     event.value = counter++;
     ring_buffer.publish(sequence);
+    produced_count.fetch_add(1, std::memory_order_relaxed);
   }
 
-  stop.store(true);
+  // Signal stop and wait for consumer to finish
+  stop.store(true, std::memory_order_release);
   consumer.join();
 
   state.SetItemsProcessed(state.iterations());
 }
-BENCHMARK(BM_RingBufferProducerConsumer);
+BENCHMARK(BM_RingBufferProducerConsumer)
+    ->MinTime(0.5)         // 最小运行 0.5 秒
+    ->Iterations(1000000); // 或固定 100万次迭代
 
 // Memory access patterns
 static void BM_RingBufferSequentialAccess(benchmark::State &state) {
