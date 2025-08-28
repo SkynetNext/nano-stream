@@ -38,11 +38,11 @@
  */
 
 // Core components
-#include "nano_stream/ring_buffer.h"
-#include "nano_stream/sequence.h"
+#include "nano_stream/ring_buffer.h" // IWYU pragma: export
+#include "nano_stream/sequence.h"    // IWYU pragma: export
 
 // Main namespace and version info
-#include "nano_stream/nano_stream.h"
+#include "nano_stream/nano_stream.h" // IWYU pragma: export
 
 /**
  * @brief Nano-Stream namespace containing all library functionality
