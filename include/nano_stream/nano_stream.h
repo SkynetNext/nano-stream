@@ -7,8 +7,9 @@
  * low-latency inter-process and inter-thread communication.
  */
 
-#include "ring_buffer.h"
-#include "sequence.h"
+// Main library headers - exported for convenience API
+#include "ring_buffer.h" // IWYU pragma: export
+#include "sequence.h"    // IWYU pragma: export
 
 #include <string>
 
