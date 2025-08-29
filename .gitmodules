@@ -7,3 +7,15 @@
 	path = third_party/benchmark
 	url = https://github.com/google/benchmark.git
 	branch = main
+
+[submodule "reference/disruptor"]
+	path = reference/disruptor
+	url = https://github.com/LMAX-Exchange/disruptor.git
+	branch = master
+	active = false
+
+[submodule "reference/aeron"]
+	path = reference/aeron
+	url = https://github.com/real-logic/aeron.git
+	branch = master
+	active = false
