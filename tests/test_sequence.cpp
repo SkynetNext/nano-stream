@@ -1,6 +1,8 @@
 #include "nano_stream/sequence.h"
 #include <atomic>
 #include <gtest/gtest.h>
+#include <memory>
+#include <new>
 #include <thread>
 #include <vector>
 

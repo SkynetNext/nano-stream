@@ -8,8 +8,11 @@
  */
 
 // Main library headers - exported for convenience API
-#include "ring_buffer.h" // IWYU pragma: export
-#include "sequence.h"    // IWYU pragma: export
+#include "consumer.h"         // IWYU pragma: export
+#include "event_handler.h"    // IWYU pragma: export
+#include "event_translator.h" // IWYU pragma: export
+#include "ring_buffer.h"      // IWYU pragma: export
+#include "sequence.h"         // IWYU pragma: export
 
 #include <string>
 

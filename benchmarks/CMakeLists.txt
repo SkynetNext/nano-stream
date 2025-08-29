@@ -34,7 +34,7 @@ target_include_directories(nano_stream_benchmarks
 
 # Set optimization flags for benchmarks
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(nano_stream_benchmarks PRIVATE -O3 -march=native -mtune=native)
+    target_compile_options(nano_stream_benchmarks PRIVATE -O3 -march=native -mtune=native -Wno-unused-parameter)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    target_compile_options(nano_stream_benchmarks PRIVATE /O2 /arch:AVX2)
+    target_compile_options(nano_stream_benchmarks PRIVATE /O2 /arch:AVX2 /wd4100)
 endif()

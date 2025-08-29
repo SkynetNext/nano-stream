@@ -75,6 +75,12 @@ int main() {
   for (int i = 0; i < NUM_TRADES; ++i) {
     // Claim next sequence
     int64_t sequence = ring_buffer.next();
+    
+    // Check for error
+    if (sequence == -1) {
+      std::cerr << "Error: Failed to claim sequence for trade " << i << "\n";
+      continue;
+    }
 
     // Get the pre-allocated event
     TradeEvent &trade = ring_buffer.get(sequence);

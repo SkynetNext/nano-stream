@@ -48,6 +48,13 @@ target_link_libraries(nano-stream
 # Set target properties
 target_compile_features(nano-stream INTERFACE cxx_std_20)
 
+# Suppress unused parameter warnings for the interface library
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(nano-stream INTERFACE -Wno-unused-parameter)
+elseif(MSVC)
+    target_compile_options(nano-stream INTERFACE /wd4100)
+endif()
+
 # Add subdirectories conditionally
 if(BUILD_TESTING)
     add_subdirectory(tests)

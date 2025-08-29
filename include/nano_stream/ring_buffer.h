@@ -1,5 +1,6 @@
 #pragma once
 
+#include "event_translator.h"
 #include "sequence.h"
 #include <atomic>
 #include <bit>
@@ -22,6 +23,16 @@ class InsufficientCapacityException : public std::runtime_error {
 public:
   InsufficientCapacityException()
       : std::runtime_error("Insufficient capacity in ring buffer") {}
+};
+
+/**
+ * Error codes for ring buffer operations
+ */
+enum class RingBufferError {
+  SUCCESS = 0,
+  INSUFFICIENT_CAPACITY = 1,
+  INVALID_ARGUMENT = 2,
+  BUFFER_FULL = 3
 };
 
 /**
@@ -55,6 +66,8 @@ public:
  * - Cache-line optimization to reduce false sharing
  * - Pre-allocated entries to avoid allocation during operation
  * - Sequence-based coordination between producers and consumers
+ * - Event translator support for atomic event updates
+ * - Error code based error handling (no exceptions for operations)
  */
 template <typename T>
 class alignas(std::hardware_destructive_interference_size) RingBuffer {
@@ -207,17 +220,20 @@ public:
    */
   int64_t next(int n) {
     if (n < 1 || n > static_cast<int>(buffer_size_)) {
-      throw std::invalid_argument("n must be > 0 and <= buffer_size");
+      // Return a sentinel value to indicate error
+      return -1;
     }
 
-    int64_t current_next = next_value_.load(std::memory_order_relaxed);
-    int64_t next_sequence = current_next + n;
+    // Use atomic fetch_add for multi-producer safety (like Disruptor's
+    // MultiProducerSequencer)
+    int64_t current = next_value_.fetch_add(n, std::memory_order_acq_rel);
+    int64_t next_sequence = current + n;
     int64_t wrap_point = next_sequence - static_cast<int64_t>(buffer_size_);
     int64_t cached_gating = cached_value_.load(std::memory_order_acquire);
 
-    if (wrap_point > cached_gating || cached_gating > current_next) {
+    if (wrap_point > cached_gating || cached_gating > current) {
       // Update cursor for consumers to see our progress
-      cursor_.set(current_next);
+      cursor_.set(current);
 
       // Spin until space becomes available
       int64_t min_sequence;
@@ -228,7 +244,6 @@ public:
       cached_value_.store(min_sequence, std::memory_order_release);
     }
 
-    next_value_.store(next_sequence, std::memory_order_release);
     return next_sequence;
   }
 
@@ -262,6 +277,36 @@ public:
   }
 
   /**
+   * Try to claim the next sequence without blocking (error code version).
+   *
+   * @param sequence Output parameter for the sequence number.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no space available.
+   */
+  RingBufferError try_next(int64_t &sequence) { return try_next(1, sequence); }
+
+  /**
+   * Try to claim the next n sequences without blocking (error code version).
+   *
+   * @param n Number of sequences to claim.
+   * @param sequence Output parameter for the highest sequence number claimed.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no space available.
+   */
+  RingBufferError try_next(int n, int64_t &sequence) {
+    if (n < 1) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+
+    if (!has_available_capacity(n)) {
+      return RingBufferError::INSUFFICIENT_CAPACITY;
+    }
+
+    sequence = next_value_.fetch_add(n, std::memory_order_acq_rel) + n;
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
    * Publish the event at the specified sequence.
    *
    * @param sequence The sequence to publish.
@@ -275,6 +320,129 @@ public:
    * @param hi The highest sequence to publish.
    */
   void publish([[maybe_unused]] int64_t lo, int64_t hi) { publish(hi); }
+
+  /**
+   * Publish an event using an event translator.
+   * This provides atomic event updates similar to Disruptor.
+   *
+   * @param translator The event translator to use.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INVALID_ARGUMENT on error.
+   */
+  RingBufferError publish_event(EventTranslator<T> &translator) {
+    int64_t sequence = next();
+    if (sequence == -1) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+    translate_and_publish(translator, sequence);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Try to publish an event using an event translator without blocking.
+   *
+   * @param translator The event translator to use.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no capacity available.
+   */
+  RingBufferError try_publish_event(EventTranslator<T> &translator) {
+    int64_t sequence;
+    auto result = try_next(sequence);
+    if (result != RingBufferError::SUCCESS) {
+      return result;
+    }
+    translate_and_publish(translator, sequence);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Publish an event using an event translator with one argument.
+   *
+   * @param translator The event translator to use.
+   * @param arg0 The first argument.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INVALID_ARGUMENT on error.
+   */
+  template <typename A>
+  RingBufferError publish_event(EventTranslatorOneArg<T, A> &translator,
+                                const A &arg0) {
+    int64_t sequence = next();
+    if (sequence == -1) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+    translate_and_publish(translator, sequence, arg0);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Try to publish an event using an event translator with one argument without
+   * blocking.
+   *
+   * @param translator The event translator to use.
+   * @param arg0 The first argument.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no capacity available.
+   */
+  template <typename A>
+  RingBufferError try_publish_event(EventTranslatorOneArg<T, A> &translator,
+                                    const A &arg0) {
+    int64_t sequence;
+    auto result = try_next(sequence);
+    if (result != RingBufferError::SUCCESS) {
+      return result;
+    }
+    translate_and_publish(translator, sequence, arg0);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Publish multiple events using event translators.
+   *
+   * @param translators Array of event translators.
+   * @param batch_starts_at Starting index in the translators array.
+   * @param batch_size Number of events to publish.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INVALID_ARGUMENT on error.
+   */
+  RingBufferError publish_events(EventTranslator<T> *translators,
+                                 int batch_starts_at, int batch_size) {
+    if (batch_size < 1 || batch_starts_at < 0) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+
+    int64_t final_sequence = next(batch_size);
+    if (final_sequence == -1) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+    translate_and_publish_batch(translators, batch_starts_at, batch_size,
+                                final_sequence);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Try to publish multiple events using event translators without blocking.
+   *
+   * @param translators Array of event translators.
+   * @param batch_starts_at Starting index in the translators array.
+   * @param batch_size Number of events to publish.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no capacity available.
+   */
+  RingBufferError try_publish_events(EventTranslator<T> *translators,
+                                     int batch_starts_at, int batch_size) {
+    if (batch_size < 1 || batch_starts_at < 0) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+
+    int64_t final_sequence;
+    auto result = try_next(batch_size, final_sequence);
+    if (result != RingBufferError::SUCCESS) {
+      return result;
+    }
+    translate_and_publish_batch(translators, batch_starts_at, batch_size,
+                                final_sequence);
+    return RingBufferError::SUCCESS;
+  }
 
   /**
    * Check if there is available capacity for the required number of entries.
@@ -345,6 +513,42 @@ public:
     int64_t current_cursor = cursor_.get();
     return sequence <= current_cursor &&
            sequence > current_cursor - static_cast<int64_t>(buffer_size_);
+  }
+
+private:
+  /**
+   * Translate and publish an event using an event translator.
+   */
+  void translate_and_publish(EventTranslator<T> &translator, int64_t sequence) {
+    translator.translate_to(get(sequence), sequence);
+    publish(sequence);
+  }
+
+  /**
+   * Translate and publish an event using an event translator with one argument.
+   */
+  template <typename A>
+  void translate_and_publish(EventTranslatorOneArg<T, A> &translator,
+                             int64_t sequence, const A &arg0) {
+    translator.translate_to(get(sequence), sequence, arg0);
+    publish(sequence);
+  }
+
+  /**
+   * Translate and publish a batch of events using event translators.
+   */
+  void translate_and_publish_batch(EventTranslator<T> *translators,
+                                   int batch_starts_at, int batch_size,
+                                   int64_t final_sequence) {
+    int64_t initial_sequence = final_sequence - (batch_size - 1);
+    int64_t sequence = initial_sequence;
+    int batch_ends_at = batch_starts_at + batch_size;
+    for (int i = batch_starts_at; i < batch_ends_at; i++) {
+      EventTranslator<T> &translator = translators[i];
+      translator.translate_to(get(sequence), sequence);
+      sequence++;
+    }
+    publish(initial_sequence, final_sequence);
   }
 };
 

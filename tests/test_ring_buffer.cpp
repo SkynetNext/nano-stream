@@ -1,3 +1,4 @@
+#include "nano_stream/event_translator.h"
 #include "nano_stream/ring_buffer.h"
 #include <atomic>
 #include <cstddef>
@@ -37,6 +38,7 @@ TEST_F(RingBufferTest, Construction) {
 
 TEST_F(RingBufferTest, InvalidBufferSize) {
   // Buffer size must be power of 2
+  // Constructors should throw exceptions for invalid buffer sizes
   EXPECT_THROW((RingBuffer<TestEvent>(1023, []() { return TestEvent(); })),
                std::invalid_argument);
 
@@ -48,6 +50,8 @@ TEST_F(RingBufferTest, InvalidBufferSize) {
 TEST_F(RingBufferTest, BasicProducerConsumer) {
   // Publish a single event
   int64_t sequence = ring_buffer->next();
+  EXPECT_NE(sequence, -1); // Check for error sentinel value
+
   TestEvent &event = ring_buffer->get(sequence);
   event.value = 42;
   ring_buffer->publish(sequence);
@@ -61,6 +65,8 @@ TEST_F(RingBufferTest, MultipleEvents) {
 
   for (int i = 0; i < num_events; ++i) {
     int64_t sequence = ring_buffer->next();
+    EXPECT_NE(sequence, -1); // Check for error sentinel value
+
     TestEvent &event = ring_buffer->get(sequence);
     event.value = i;
     ring_buffer->publish(sequence);
@@ -75,7 +81,9 @@ TEST_F(RingBufferTest, MultipleEvents) {
 
 TEST_F(RingBufferTest, TryNext) {
   // Should succeed when buffer is empty
-  int64_t sequence = ring_buffer->try_next();
+  int64_t sequence;
+  auto result = ring_buffer->try_next(sequence);
+  EXPECT_EQ(result, RingBufferError::SUCCESS);
   EXPECT_GE(sequence, 0);
 
   TestEvent &event = ring_buffer->get(sequence);
@@ -88,6 +96,7 @@ TEST_F(RingBufferTest, TryNext) {
 TEST_F(RingBufferTest, BatchClaiming) {
   const int batch_size = 10;
   int64_t sequence = ring_buffer->next(batch_size);
+  EXPECT_NE(sequence, -1); // Check for error sentinel value
 
   // Fill batch
   for (int i = 0; i < batch_size; ++i) {
@@ -114,6 +123,7 @@ TEST_F(RingBufferTest, HasAvailableCapacity) {
   // should still have capacity
   for (int i = 0; i < 500; ++i) {
     int64_t sequence = ring_buffer->next();
+    EXPECT_NE(sequence, -1); // Check for error sentinel value
     ring_buffer->publish(sequence);
   }
 
@@ -127,6 +137,7 @@ TEST_F(RingBufferTest, RemainingCapacity) {
   // Publish some events
   for (int i = 0; i < 10; ++i) {
     int64_t sequence = ring_buffer->next();
+    EXPECT_NE(sequence, -1); // Check for error sentinel value
     ring_buffer->publish(sequence);
   }
 
@@ -142,6 +153,7 @@ TEST_F(RingBufferTest, IsAvailable) {
 
   // Publish one event
   int64_t sequence = ring_buffer->next();
+  EXPECT_NE(sequence, -1); // Check for error sentinel value
   ring_buffer->publish(sequence);
 
   // Now that sequence should be available
@@ -174,6 +186,8 @@ TEST_F(RingBufferTest, ConcurrentProducerSingleConsumer) {
   std::thread producer([&]() {
     for (int i = 0; i < num_events; ++i) {
       int64_t sequence = ring_buffer->next();
+      EXPECT_NE(sequence, -1); // Check for error sentinel value
+
       TestEvent &event = ring_buffer->get(sequence);
       event.value = sequence;
       ring_buffer->publish(sequence);
@@ -191,4 +205,30 @@ TEST_F(RingBufferTest, MemoryAlignment) {
   // Test that RingBuffer is properly aligned
   EXPECT_EQ(alignof(RingBuffer<TestEvent>),
             std::hardware_destructive_interference_size);
+}
+
+TEST_F(RingBufferTest, ErrorHandling) {
+  // Test invalid arguments
+  int64_t sequence;
+  auto result = ring_buffer->try_next(0, sequence);
+  EXPECT_EQ(result, RingBufferError::INVALID_ARGUMENT);
+
+  result = ring_buffer->try_next(-1, sequence);
+  EXPECT_EQ(result, RingBufferError::INVALID_ARGUMENT);
+}
+
+TEST_F(RingBufferTest, EventTranslator) {
+  // Test event translator functionality
+  struct TestTranslator : public EventTranslator<TestEvent> {
+    void translate_to(TestEvent &event, int64_t sequence) override {
+      event.value = sequence * 2;
+    }
+  };
+
+  TestTranslator translator;
+  auto result = ring_buffer->publish_event(translator);
+  EXPECT_EQ(result, RingBufferError::SUCCESS);
+
+  // Verify the event was published correctly
+  EXPECT_EQ(ring_buffer->get(0).value, 0); // sequence 0 * 2 = 0
 }

@@ -34,6 +34,13 @@ target_include_directories(nano_stream_tests
         ${CMAKE_SOURCE_DIR}/include
 )
 
+# Suppress unused parameter warnings for tests
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(nano_stream_tests PRIVATE -Wno-unused-parameter)
+elseif(MSVC)
+    target_compile_options(nano_stream_tests PRIVATE /wd4100)
+endif()
+
 # Add tests to CTest
 include(GoogleTest)
 gtest_discover_tests(nano_stream_tests)

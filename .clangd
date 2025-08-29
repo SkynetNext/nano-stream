@@ -19,3 +19,9 @@ Diagnostics:
 
 Index:
   Background: Build
+
+InlayHints:
+  Enabled: No
+  ParameterNames: No
+  DeducedTypes: No
+  Designators: No
