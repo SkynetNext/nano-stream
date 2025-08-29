@@ -11,7 +11,14 @@
 [submodule "reference/aeron"]
 	path = reference/aeron
 	url = https://github.com/real-logic/aeron.git
-	
+
 [submodule "reference/disruptor"]
 	path = reference/disruptor
 	url = https://github.com/LMAX-Exchange/disruptor.git
+	
+[submodule "reference/tendermint"]
+	path = reference/tendermint
+	url = https://github.com/tendermint/tendermint.git
+[submodule "reference/diem"]
+	path = reference/diem
+	url = https://github.com/diem/diem.git
