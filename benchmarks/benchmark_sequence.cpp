@@ -1,6 +1,7 @@
 #include "nano_stream/sequence.h"
 #include <atomic>
 #include <benchmark/benchmark.h>
+#include <cstdint>
 #include <thread>
 
 using namespace nano_stream;
