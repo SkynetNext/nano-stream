@@ -2,6 +2,7 @@
 
 #include "event_translator.h"
 #include "sequence.h"
+#include "wait_strategy.h"
 #include <atomic>
 #include <bit>
 #include <cstddef>
@@ -11,7 +12,7 @@
 #include <memory>
 #include <new>
 #include <stdexcept>
-#include <thread>
+#include <utility>
 #include <vector>
 
 namespace nano_stream {
@@ -110,6 +111,9 @@ private:
   // Gating sequences for consumers
   std::vector<std::reference_wrapper<const Sequence>> gating_sequences_;
 
+  // Wait strategy for consumers
+  std::unique_ptr<WaitStrategy> wait_strategy_;
+
   /**
    * Check if the buffer size is valid (power of 2).
    */
@@ -155,30 +159,33 @@ public:
    * Create a single producer ring buffer with lambda factory.
    */
   template <typename FactoryFn>
-  static RingBuffer<T> createSingleProducer(size_t buffer_size,
-                                            FactoryFn &&factory_fn) {
+  static RingBuffer<T>
+  createSingleProducer(size_t buffer_size, FactoryFn &&factory_fn,
+                       std::unique_ptr<WaitStrategy> wait_strategy = nullptr) {
     return RingBuffer<T>(buffer_size, std::forward<FactoryFn>(factory_fn),
-                         ProducerType::SINGLE);
+                         ProducerType::SINGLE, std::move(wait_strategy));
   }
 
   /**
    * Create a multi producer ring buffer with lambda factory.
    */
   template <typename FactoryFn>
-  static RingBuffer<T> createMultiProducer(size_t buffer_size,
-                                           FactoryFn &&factory_fn) {
+  static RingBuffer<T>
+  createMultiProducer(size_t buffer_size, FactoryFn &&factory_fn,
+                      std::unique_ptr<WaitStrategy> wait_strategy = nullptr) {
     return RingBuffer<T>(buffer_size, std::forward<FactoryFn>(factory_fn),
-                         ProducerType::MULTI);
+                         ProducerType::MULTI, std::move(wait_strategy));
   }
 
   /**
    * Create a ring buffer with specified producer type and lambda factory.
    */
   template <typename FactoryFn>
-  static RingBuffer<T> create(ProducerType producer_type, size_t buffer_size,
-                              FactoryFn &&factory_fn) {
+  static RingBuffer<T>
+  create(ProducerType producer_type, size_t buffer_size, FactoryFn &&factory_fn,
+         std::unique_ptr<WaitStrategy> wait_strategy = nullptr) {
     return RingBuffer<T>(buffer_size, std::forward<FactoryFn>(factory_fn),
-                         producer_type);
+                         producer_type, std::move(wait_strategy));
   }
 
   /**
@@ -195,17 +202,24 @@ public:
    */
   template <typename FactoryFn>
   RingBuffer(size_t buffer_size, FactoryFn &&factory_fn,
-             ProducerType producer_type = ProducerType::SINGLE)
+             ProducerType producer_type = ProducerType::SINGLE,
+             std::unique_ptr<WaitStrategy> wait_strategy = nullptr)
       : buffer_size_(buffer_size), index_mask_(buffer_size - 1),
         producer_type_(producer_type),
         entries_(std::make_unique<T[]>(buffer_size + 2 * BUFFER_PAD)),
         cursor_(INITIAL_CURSOR_VALUE), next_value_(INITIAL_CURSOR_VALUE),
-        cached_value_(INITIAL_CURSOR_VALUE) {
+        cached_value_(INITIAL_CURSOR_VALUE),
+        wait_strategy_(std::move(wait_strategy)) {
     if (buffer_size < 1) {
       throw std::invalid_argument("Buffer size must not be less than 1");
     }
     if (!is_power_of_two(buffer_size)) {
       throw std::invalid_argument("Buffer size must be a power of 2");
+    }
+
+    // Use default wait strategy if none provided
+    if (!wait_strategy_) {
+      wait_strategy_ = std::make_unique<YieldingWaitStrategy>();
     }
 
     // Initialize all entries using the lambda factory
@@ -532,6 +546,13 @@ public:
            sequence > current_cursor - static_cast<int64_t>(buffer_size_);
   }
 
+  /**
+   * Get the wait strategy used by this ring buffer.
+   *
+   * @return Pointer to the wait strategy.
+   */
+  WaitStrategy *get_wait_strategy() const { return wait_strategy_.get(); }
+
 private:
   /**
    * Single producer implementation - optimized for performance.
@@ -547,7 +568,8 @@ private:
 
       int64_t min_sequence;
       while (wrap_point > (min_sequence = get_minimum_sequence())) {
-        std::this_thread::yield();
+        wait_strategy_->wait_for(wrap_point, cursor_, min_sequence);
+        min_sequence = get_minimum_sequence();
       }
 
       cached_value_.store(min_sequence, std::memory_order_release);
@@ -571,7 +593,8 @@ private:
 
       int64_t min_sequence;
       while (wrap_point > (min_sequence = get_minimum_sequence())) {
-        std::this_thread::yield();
+        wait_strategy_->wait_for(wrap_point, cursor_, min_sequence);
+        min_sequence = get_minimum_sequence();
       }
 
       cached_value_.store(min_sequence, std::memory_order_release);

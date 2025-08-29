@@ -162,6 +162,10 @@ TEST_F(RingBufferTest, IsAvailable) {
 }
 
 TEST_F(RingBufferTest, ConcurrentProducerSingleConsumer) {
+  // Create a multi-producer ring buffer for this test
+  auto multi_producer_buffer = RingBuffer<TestEvent>::createMultiProducer(
+      1024, []() { return TestEvent(); });
+
   const int num_events = 10000;
   std::atomic<int> events_consumed{0};
   std::atomic<bool> stop_consumer{false};
@@ -171,8 +175,8 @@ TEST_F(RingBufferTest, ConcurrentProducerSingleConsumer) {
     int64_t next_to_read = 0;
 
     while (!stop_consumer.load() || events_consumed.load() < num_events) {
-      if (ring_buffer->is_available(next_to_read)) {
-        const TestEvent &event = ring_buffer->get(next_to_read);
+      if (multi_producer_buffer.is_available(next_to_read)) {
+        const TestEvent &event = multi_producer_buffer.get(next_to_read);
         EXPECT_EQ(event.value, next_to_read);
         events_consumed.fetch_add(1);
         next_to_read++;
@@ -185,12 +189,12 @@ TEST_F(RingBufferTest, ConcurrentProducerSingleConsumer) {
   // Producer thread
   std::thread producer([&]() {
     for (int i = 0; i < num_events; ++i) {
-      int64_t sequence = ring_buffer->next();
+      int64_t sequence = multi_producer_buffer.next();
       EXPECT_NE(sequence, -1); // Check for error sentinel value
 
-      TestEvent &event = ring_buffer->get(sequence);
+      TestEvent &event = multi_producer_buffer.get(sequence);
       event.value = sequence;
-      ring_buffer->publish(sequence);
+      multi_producer_buffer.publish(sequence);
     }
     stop_consumer.store(true);
   });
