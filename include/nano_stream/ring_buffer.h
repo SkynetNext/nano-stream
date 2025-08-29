@@ -427,6 +427,93 @@ public:
   }
 
   /**
+   * Publish an event using an event translator with two arguments.
+   *
+   * @param translator The event translator to use.
+   * @param arg0 The first argument.
+   * @param arg1 The second argument.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INVALID_ARGUMENT on error.
+   */
+  template <typename A, typename B>
+  RingBufferError publish_event(EventTranslatorTwoArg<T, A, B> &translator,
+                                const A &arg0, const B &arg1) {
+    int64_t sequence = next();
+    if (sequence == -1) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+    translate_and_publish(translator, sequence, arg0, arg1);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Try to publish an event using an event translator with two arguments
+   * without blocking.
+   *
+   * @param translator The event translator to use.
+   * @param arg0 The first argument.
+   * @param arg1 The second argument.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no capacity available.
+   */
+  template <typename A, typename B>
+  RingBufferError try_publish_event(EventTranslatorTwoArg<T, A, B> &translator,
+                                    const A &arg0, const B &arg1) {
+    int64_t sequence;
+    auto result = try_next(sequence);
+    if (result != RingBufferError::SUCCESS) {
+      return result;
+    }
+    translate_and_publish(translator, sequence, arg0, arg1);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Publish an event using an event translator with three arguments.
+   *
+   * @param translator The event translator to use.
+   * @param arg0 The first argument.
+   * @param arg1 The second argument.
+   * @param arg2 The third argument.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INVALID_ARGUMENT on error.
+   */
+  template <typename A, typename B, typename C>
+  RingBufferError publish_event(EventTranslatorThreeArg<T, A, B, C> &translator,
+                                const A &arg0, const B &arg1, const C &arg2) {
+    int64_t sequence = next();
+    if (sequence == -1) {
+      return RingBufferError::INVALID_ARGUMENT;
+    }
+    translate_and_publish(translator, sequence, arg0, arg1, arg2);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
+   * Try to publish an event using an event translator with three arguments
+   * without blocking.
+   *
+   * @param translator The event translator to use.
+   * @param arg0 The first argument.
+   * @param arg1 The second argument.
+   * @param arg2 The third argument.
+   * @return RingBufferError::SUCCESS on success,
+   * RingBufferError::INSUFFICIENT_CAPACITY if no capacity available.
+   */
+  template <typename A, typename B, typename C>
+  RingBufferError
+  try_publish_event(EventTranslatorThreeArg<T, A, B, C> &translator,
+                    const A &arg0, const B &arg1, const C &arg2) {
+    int64_t sequence;
+    auto result = try_next(sequence);
+    if (result != RingBufferError::SUCCESS) {
+      return result;
+    }
+    translate_and_publish(translator, sequence, arg0, arg1, arg2);
+    return RingBufferError::SUCCESS;
+  }
+
+  /**
    * Publish multiple events using event translators.
    *
    * @param translators Array of event translators.
@@ -619,6 +706,29 @@ private:
   void translate_and_publish(EventTranslatorOneArg<T, A> &translator,
                              int64_t sequence, const A &arg0) {
     translator.translate_to(get(sequence), sequence, arg0);
+    publish(sequence);
+  }
+
+  /**
+   * Translate and publish an event using an event translator with two
+   * arguments.
+   */
+  template <typename A, typename B>
+  void translate_and_publish(EventTranslatorTwoArg<T, A, B> &translator,
+                             int64_t sequence, const A &arg0, const B &arg1) {
+    translator.translate_to(get(sequence), sequence, arg0, arg1);
+    publish(sequence);
+  }
+
+  /**
+   * Translate and publish an event using an event translator with three
+   * arguments.
+   */
+  template <typename A, typename B, typename C>
+  void translate_and_publish(EventTranslatorThreeArg<T, A, B, C> &translator,
+                             int64_t sequence, const A &arg0, const B &arg1,
+                             const C &arg2) {
+    translator.translate_to(get(sequence), sequence, arg0, arg1, arg2);
     publish(sequence);
   }
 

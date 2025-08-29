@@ -60,6 +60,27 @@ public:
 };
 
 /**
+ * Event translator with three arguments.
+ */
+template <typename T, typename A, typename B, typename C>
+class EventTranslatorThreeArg {
+public:
+  virtual ~EventTranslatorThreeArg() = default;
+
+  /**
+   * Translate data into the given event with three arguments.
+   *
+   * @param event The event to update
+   * @param sequence The sequence number assigned to the event
+   * @param arg0 The first argument
+   * @param arg1 The second argument
+   * @param arg2 The third argument
+   */
+  virtual void translate_to(T &event, int64_t sequence, const A &arg0,
+                            const B &arg1, const C &arg2) = 0;
+};
+
+/**
  * Lambda-based event translator for convenience.
  */
 template <typename T> class LambdaEventTranslator : public EventTranslator<T> {
@@ -91,6 +112,47 @@ public:
 
   void translate_to(T &event, int64_t sequence, const A &arg0) override {
     translator_fn_(event, sequence, arg0);
+  }
+};
+
+/**
+ * Lambda-based event translator with two arguments.
+ */
+template <typename T, typename A, typename B>
+class LambdaEventTranslatorTwoArg : public EventTranslatorTwoArg<T, A, B> {
+private:
+  std::function<void(T &, int64_t, const A &, const B &)> translator_fn_;
+
+public:
+  explicit LambdaEventTranslatorTwoArg(
+      std::function<void(T &, int64_t, const A &, const B &)> translator_fn)
+      : translator_fn_(std::move(translator_fn)) {}
+
+  void translate_to(T &event, int64_t sequence, const A &arg0,
+                    const B &arg1) override {
+    translator_fn_(event, sequence, arg0, arg1);
+  }
+};
+
+/**
+ * Lambda-based event translator with three arguments.
+ */
+template <typename T, typename A, typename B, typename C>
+class LambdaEventTranslatorThreeArg
+    : public EventTranslatorThreeArg<T, A, B, C> {
+private:
+  std::function<void(T &, int64_t, const A &, const B &, const C &)>
+      translator_fn_;
+
+public:
+  explicit LambdaEventTranslatorThreeArg(
+      std::function<void(T &, int64_t, const A &, const B &, const C &)>
+          translator_fn)
+      : translator_fn_(std::move(translator_fn)) {}
+
+  void translate_to(T &event, int64_t sequence, const A &arg0, const B &arg1,
+                    const C &arg2) override {
+    translator_fn_(event, sequence, arg0, arg1, arg2);
   }
 };
 
