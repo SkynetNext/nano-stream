@@ -8,13 +8,25 @@ add_executable(advanced_example
     advanced_example.cpp
 )
 
+add_executable(aeron_simple_basic
+    aeron_simple_basic.cpp
+)
+
+add_executable(aeron_ipc_example
+    aeron_ipc_example.cpp
+)
+
 # Suppress unused parameter warnings for each target
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(basic_example PRIVATE -Wno-unused-parameter)
     target_compile_options(advanced_example PRIVATE -Wno-unused-parameter)
+    target_compile_options(aeron_simple_basic PRIVATE -Wno-unused-parameter)
+    target_compile_options(aeron_ipc_example PRIVATE -Wno-unused-parameter)
 elseif(MSVC)
     target_compile_options(basic_example PRIVATE /wd4100)
     target_compile_options(advanced_example PRIVATE /wd4100)
+    target_compile_options(aeron_simple_basic PRIVATE /wd4100)
+    target_compile_options(aeron_ipc_example PRIVATE /wd4100)
 endif()
 
 target_link_libraries(basic_example
@@ -27,12 +39,32 @@ target_link_libraries(advanced_example
         nano-stream
 )
 
+target_link_libraries(aeron_simple_basic
+    PRIVATE
+        nano-stream
+)
+
+target_link_libraries(aeron_ipc_example
+    PRIVATE
+        nano-stream
+)
+
 target_include_directories(basic_example
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
 )
 
 target_include_directories(advanced_example
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_include_directories(aeron_simple_basic
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_include_directories(aeron_ipc_example
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
 )
