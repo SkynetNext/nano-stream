@@ -19,8 +19,9 @@ struct BenchmarkEvent {
 // Single producer benchmarks
 static void BM_RingBufferSingleProducer(benchmark::State &state) {
   const size_t buffer_size = state.range(0);
-  RingBuffer<BenchmarkEvent> ring_buffer(buffer_size,
-                                         []() { return BenchmarkEvent(); });
+  auto factory = []() { return BenchmarkEvent(); };
+  RingBuffer<BenchmarkEvent> ring_buffer =
+      RingBuffer<BenchmarkEvent>::createSingleProducer(buffer_size, factory);
 
   int64_t counter = 0;
 

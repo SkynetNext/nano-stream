@@ -329,7 +329,21 @@ EventFactory<LongEvent> factory = []() { return LongEvent(); };
 
 ## Real-World Application Patterns
 
-### Financial Trading Systems
+### Same-Language Microservices Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Java Order    │    │   Java Risk     │    │   Java Trade    │
+│   Service       │    │   Management    │    │   Service       │
+│                 │    │                 │    │                 │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │Disruptor    │ │    │ │Disruptor    │ │    │ │Disruptor    │ │
+│ │(OrderEvent) │ │    │ │(RiskEvent)  │ │    │ │(TradeEvent) │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Cross-Language Architecture (External to Disruptor)
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -337,7 +351,7 @@ EventFactory<LongEvent> factory = []() { return LongEvent(); };
 │   Engine        │    │   Management    │    │   Analytics     │
 │                 │    │                 │    │                 │
 │ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │Disruptor    │ │    │ │Disruptor    │ │    │ │Message      │ │
+│ │nano-stream  │ │    │ │Disruptor    │ │    │ │Message      │ │
 │ │(High Perf)  │ │    │ │(High Perf)  │ │    │ │Queue        │ │
 │ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
 └─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
@@ -364,6 +378,11 @@ EventFactory<LongEvent> factory = []() { return LongEvent(); };
 3. **Separate by Data Volume**
    - Large events and small events use different buffer sizes
    - Optimize memory allocation for each type
+
+4. **Language Boundaries**
+   - Use Disruptor/nano-stream for same-language, high-performance communication
+   - Use message middleware for cross-language communication
+   - Don't attempt to force Disruptor into cross-language scenarios
 
 ## Implications for nano-stream
 

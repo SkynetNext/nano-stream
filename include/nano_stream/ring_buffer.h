@@ -17,6 +17,23 @@
 namespace nano_stream {
 
 /**
+ * Defines producer types to support creation of RingBuffer with correct
+ * sequencer and publisher.
+ */
+enum class ProducerType {
+  /**
+   * Create a RingBuffer with a single event publisher to the RingBuffer
+   */
+  SINGLE,
+
+  /**
+   * Create a RingBuffer supporting multiple event publishers to the one
+   * RingBuffer
+   */
+  MULTI
+};
+
+/**
  * Exception thrown when there is insufficient capacity in the ring buffer.
  */
 class InsufficientCapacityException : public std::runtime_error {
@@ -76,12 +93,13 @@ private:
 
   const size_t buffer_size_;
   const size_t index_mask_;
+  const ProducerType producer_type_;
   std::unique_ptr<T[]> entries_;
 
   // Sequence for tracking the current position
   alignas(std::hardware_destructive_interference_size) Sequence cursor_;
 
-  // Next value to be published (for single producer)
+  // Next value to be published
   alignas(std::hardware_destructive_interference_size)
       std::atomic<int64_t> next_value_;
 
@@ -134,37 +152,52 @@ public:
   static constexpr int64_t INITIAL_CURSOR_VALUE = Sequence::INITIAL_VALUE;
 
   /**
-   * Create a ring buffer with the specified size and event factory.
+   * Create a single producer ring buffer with lambda factory.
+   */
+  template <typename FactoryFn>
+  static RingBuffer<T> createSingleProducer(size_t buffer_size,
+                                            FactoryFn &&factory_fn) {
+    return RingBuffer<T>(buffer_size, std::forward<FactoryFn>(factory_fn),
+                         ProducerType::SINGLE);
+  }
+
+  /**
+   * Create a multi producer ring buffer with lambda factory.
+   */
+  template <typename FactoryFn>
+  static RingBuffer<T> createMultiProducer(size_t buffer_size,
+                                           FactoryFn &&factory_fn) {
+    return RingBuffer<T>(buffer_size, std::forward<FactoryFn>(factory_fn),
+                         ProducerType::MULTI);
+  }
+
+  /**
+   * Create a ring buffer with specified producer type and lambda factory.
+   */
+  template <typename FactoryFn>
+  static RingBuffer<T> create(ProducerType producer_type, size_t buffer_size,
+                              FactoryFn &&factory_fn) {
+    return RingBuffer<T>(buffer_size, std::forward<FactoryFn>(factory_fn),
+                         producer_type);
+  }
+
+  /**
+   * Create a ring buffer with EventFactory interface.
    *
    * @param buffer_size Number of elements in the ring buffer (must be power of
    * 2).
    * @param event_factory Factory for creating events.
+   * @param producer_type Type of producer (SINGLE or MULTI).
    */
-  template <typename Factory>
-  RingBuffer(size_t buffer_size, Factory &event_factory)
-      : buffer_size_(buffer_size), index_mask_(buffer_size - 1),
-        entries_(std::make_unique<T[]>(buffer_size + 2 * BUFFER_PAD)),
-        cursor_(INITIAL_CURSOR_VALUE), next_value_(INITIAL_CURSOR_VALUE),
-        cached_value_(INITIAL_CURSOR_VALUE) {
-    if (buffer_size < 1) {
-      throw std::invalid_argument("Buffer size must not be less than 1");
-    }
-    if (!is_power_of_two(buffer_size)) {
-      throw std::invalid_argument("Buffer size must be a power of 2");
-    }
-
-    // Initialize all entries using the factory
-    for (size_t i = 0; i < buffer_size_; ++i) {
-      entries_[BUFFER_PAD + i] = event_factory.create();
-    }
-  }
 
   /**
-   * Convenience constructor using lambda factory.
+   * Constructor using lambda factory.
    */
   template <typename FactoryFn>
-  RingBuffer(size_t buffer_size, FactoryFn factory_fn)
+  RingBuffer(size_t buffer_size, FactoryFn &&factory_fn,
+             ProducerType producer_type = ProducerType::SINGLE)
       : buffer_size_(buffer_size), index_mask_(buffer_size - 1),
+        producer_type_(producer_type),
         entries_(std::make_unique<T[]>(buffer_size + 2 * BUFFER_PAD)),
         cursor_(INITIAL_CURSOR_VALUE), next_value_(INITIAL_CURSOR_VALUE),
         cached_value_(INITIAL_CURSOR_VALUE) {
@@ -224,27 +257,11 @@ public:
       return -1;
     }
 
-    // Use atomic fetch_add for multi-producer safety (like Disruptor's
-    // MultiProducerSequencer)
-    int64_t current = next_value_.fetch_add(n, std::memory_order_acq_rel);
-    int64_t next_sequence = current + n;
-    int64_t wrap_point = next_sequence - static_cast<int64_t>(buffer_size_);
-    int64_t cached_gating = cached_value_.load(std::memory_order_acquire);
-
-    if (wrap_point > cached_gating || cached_gating > current) {
-      // Update cursor for consumers to see our progress
-      cursor_.set(current);
-
-      // Spin until space becomes available
-      int64_t min_sequence;
-      while (wrap_point > (min_sequence = get_minimum_sequence())) {
-        std::this_thread::yield();
-      }
-
-      cached_value_.store(min_sequence, std::memory_order_release);
+    if (producer_type_ == ProducerType::SINGLE) {
+      return next_single_producer(n);
+    } else {
+      return next_multi_producer(n);
     }
-
-    return next_sequence;
   }
 
   /**
@@ -513,6 +530,54 @@ public:
     int64_t current_cursor = cursor_.get();
     return sequence <= current_cursor &&
            sequence > current_cursor - static_cast<int64_t>(buffer_size_);
+  }
+
+private:
+  /**
+   * Single producer implementation - optimized for performance.
+   */
+  int64_t next_single_producer(int n) {
+    int64_t next_value = next_value_.load(std::memory_order_relaxed);
+    int64_t next_sequence = next_value + n;
+    int64_t wrap_point = next_sequence - static_cast<int64_t>(buffer_size_);
+    int64_t cached_gating = cached_value_.load(std::memory_order_acquire);
+
+    if (wrap_point > cached_gating || cached_gating > next_value) {
+      cursor_.set(next_value);
+
+      int64_t min_sequence;
+      while (wrap_point > (min_sequence = get_minimum_sequence())) {
+        std::this_thread::yield();
+      }
+
+      cached_value_.store(min_sequence, std::memory_order_release);
+    }
+
+    next_value_.store(next_sequence, std::memory_order_relaxed);
+    return next_sequence;
+  }
+
+  /**
+   * Multi producer implementation - thread-safe with atomic operations.
+   */
+  int64_t next_multi_producer(int n) {
+    int64_t current = next_value_.fetch_add(n, std::memory_order_acq_rel);
+    int64_t next_sequence = current + n;
+    int64_t wrap_point = next_sequence - static_cast<int64_t>(buffer_size_);
+    int64_t cached_gating = cached_value_.load(std::memory_order_acquire);
+
+    if (wrap_point > cached_gating || cached_gating > current) {
+      cursor_.set(current);
+
+      int64_t min_sequence;
+      while (wrap_point > (min_sequence = get_minimum_sequence())) {
+        std::this_thread::yield();
+      }
+
+      cached_value_.store(min_sequence, std::memory_order_release);
+    }
+
+    return next_sequence;
   }
 
 private:
