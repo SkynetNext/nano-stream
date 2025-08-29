@@ -1,8 +1,11 @@
 #include "nano_stream.h"
+#include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <iostream>
 #include <thread>
-#include <vector>
 
 using namespace nano_stream;
 
@@ -75,7 +78,7 @@ int main() {
   for (int i = 0; i < NUM_TRADES; ++i) {
     // Claim next sequence
     int64_t sequence = ring_buffer.next();
-    
+
     // Check for error
     if (sequence == -1) {
       std::cerr << "Error: Failed to claim sequence for trade " << i << "\n";

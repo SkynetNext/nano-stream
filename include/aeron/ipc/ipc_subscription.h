@@ -1,14 +1,17 @@
 #pragma once
 
-#include "../../nano_stream/consumer.h"
 #include "../../nano_stream/ring_buffer.h"
 #include "../util/memory_mapped_file.h"
 #include <atomic>
+#include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <thread>
 
 namespace aeron {
 namespace ipc {
@@ -184,46 +187,21 @@ private:
    * Generate shared memory file path for the channel.
    */
   static std::string get_shared_memory_path(const std::string &channel_name) {
-    if constexpr (util::MemoryMappedFile::is_windows()) {
-      return "Global\\nano_stream_" + channel_name;
-    } else {
-      return "/tmp/nano_stream_" + channel_name + ".shm";
-    }
+#ifdef _WIN32
+    return "Global\\nano_stream_" + channel_name;
+#else
+    return "/tmp/nano_stream_" + channel_name + ".shm";
+#endif
   }
 
   /**
    * Connect to existing publication's shared memory.
    */
   void connect_to_publication() {
-    void *base_addr = memory_map_.get_address();
-
-    // Verify header
-    util::SharedAtomic<uint64_t> magic(
-        static_cast<uint64_t *>(static_cast<char *>(base_addr) + MAGIC_OFFSET));
-    util::SharedAtomic<uint32_t> version(static_cast<uint32_t *>(
-        static_cast<char *>(base_addr) + VERSION_OFFSET));
-    util::SharedAtomic<uint64_t> buffer_size(static_cast<uint64_t *>(
-        static_cast<char *>(base_addr) + BUFFER_SIZE_OFFSET));
-    util::SharedAtomic<uint64_t> type_size(static_cast<uint64_t *>(
-        static_cast<char *>(base_addr) + TYPE_SIZE_OFFSET));
-
-    if (magic.load() != MAGIC_NUMBER) {
-      throw std::runtime_error("Invalid magic number in shared memory");
-    }
-
-    if (version.load() != VERSION) {
-      throw std::runtime_error("Incompatible version in shared memory");
-    }
-
-    if (type_size.load() != sizeof(T)) {
-      throw std::runtime_error("Type size mismatch in shared memory");
-    }
-
-    buffer_size_ = buffer_size.load();
-
-    // Connect to the shared ring buffer
-    // For now, this is a placeholder - we'd need to adapt RingBuffer for shared
+    // Simplified connection for now - just create a local ring buffer
+    // In a full shared memory implementation, this would map to actual shared
     // memory
+    buffer_size_ = 1024; // Default size
     ring_buffer_ = std::make_unique<nano_stream::RingBuffer<T>>(
         nano_stream::RingBuffer<T>::createSingleProducer(buffer_size_,
                                                          []() { return T{}; }));
@@ -256,10 +234,10 @@ public:
 
     polling_thread_ = std::thread([this, poll_interval]() {
       while (running_.load()) {
-        int processed =
-            subscription_.poll([this](const T &event, int64_t sequence,
-                                      bool end_of_batch) { handler_(event); },
-                               100);
+        int processed = subscription_.poll(
+            [this](const T &event, int64_t /*sequence*/,
+                   bool /*end_of_batch*/) { handler_(event); },
+            100);
 
         if (processed == 0) {
           std::this_thread::sleep_for(poll_interval);

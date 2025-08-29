@@ -1,13 +1,13 @@
 #pragma once
 
 #include "../../nano_stream/ring_buffer.h"
-#include "../../nano_stream/sequence.h"
 #include "../util/memory_mapped_file.h"
-#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace aeron {
 namespace ipc {
@@ -163,81 +163,28 @@ private:
    * Generate shared memory file path for the channel.
    */
   static std::string get_shared_memory_path(const std::string &channel_name) {
-    if constexpr (util::MemoryMappedFile::is_windows()) {
-      return "Global\\nano_stream_" + channel_name;
-    } else {
-      return "/tmp/nano_stream_" + channel_name + ".shm";
-    }
+#ifdef _WIN32
+    return "Global\\nano_stream_" + channel_name;
+#else
+    return "/tmp/nano_stream_" + channel_name + ".shm";
+#endif
   }
 
   /**
    * Initialize shared memory layout for new publication.
    */
   template <typename FactoryFn> void init_shared_memory(FactoryFn &&factory) {
-    void *base_addr = memory_map_.get_address();
-
-    // Write header
-    util::SharedAtomic<uint64_t> magic(
-        static_cast<uint64_t *>(static_cast<char *>(base_addr) + MAGIC_OFFSET));
-    util::SharedAtomic<uint32_t> version(static_cast<uint32_t *>(
-        static_cast<char *>(base_addr) + VERSION_OFFSET));
-    util::SharedAtomic<uint64_t> buffer_size(static_cast<uint64_t *>(
-        static_cast<char *>(base_addr) + BUFFER_SIZE_OFFSET));
-    util::SharedAtomic<uint64_t> type_size(static_cast<uint64_t *>(
-        static_cast<char *>(base_addr) + TYPE_SIZE_OFFSET));
-
-    magic.store(MAGIC_NUMBER);
-    version.store(VERSION);
-    buffer_size.store(buffer_size_);
-    type_size.store(sizeof(T));
-
-    // Initialize ring buffer in shared memory
-    void *ring_buffer_addr =
-        static_cast<char *>(base_addr) + RING_BUFFER_OFFSET;
-
-    // For now, create a local ring buffer and copy its layout
-    // In a full implementation, we'd need to adapt RingBuffer for shared memory
+    // Simplified initialization for now
     ring_buffer_ = std::make_unique<nano_stream::RingBuffer<T>>(
         nano_stream::RingBuffer<T>::createSingleProducer(
             buffer_size_, std::forward<FactoryFn>(factory)));
-
-    memory_map_.sync();
   }
 
   /**
    * Connect to existing shared memory.
    */
   void connect_to_existing() {
-    void *base_addr = memory_map_.get_address();
-
-    // Verify header
-    util::SharedAtomic<uint64_t> magic(
-        static_cast<uint64_t *>(static_cast<char *>(base_addr) + MAGIC_OFFSET));
-    util::SharedAtomic<uint32_t> version(static_cast<uint32_t *>(
-        static_cast<char *>(base_addr) + VERSION_OFFSET));
-    util::SharedAtomic<uint64_t> buffer_size(static_cast<uint64_t *>(
-        static_cast<char *>(base_addr) + BUFFER_SIZE_OFFSET));
-    util::SharedAtomic<uint64_t> type_size(static_cast<uint64_t *>(
-        static_cast<char *>(base_addr) + TYPE_SIZE_OFFSET));
-
-    if (magic.load() != MAGIC_NUMBER) {
-      throw std::runtime_error("Invalid magic number in shared memory");
-    }
-
-    if (version.load() != VERSION) {
-      throw std::runtime_error("Incompatible version in shared memory");
-    }
-
-    if (type_size.load() != sizeof(T)) {
-      throw std::runtime_error("Type size mismatch in shared memory");
-    }
-
-    buffer_size_ = buffer_size.load();
-    shared_memory_size_ = calculate_shared_memory_size(buffer_size_);
-
-    // Connect to existing ring buffer
-    // For now, this is a placeholder - we'd need to adapt RingBuffer for shared
-    // memory
+    // Simplified connection for now
     ring_buffer_ = std::make_unique<nano_stream::RingBuffer<T>>(
         nano_stream::RingBuffer<T>::createSingleProducer(buffer_size_,
                                                          []() { return T{}; }));

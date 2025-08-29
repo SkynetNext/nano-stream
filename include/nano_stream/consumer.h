@@ -1,5 +1,12 @@
 #pragma once
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include "event_handler.h"
 #include "ring_buffer.h"
 #include "sequence.h"
@@ -91,9 +98,11 @@ private:
 
       if (next_sequence <= available_sequence) {
         // Process available events
-        int64_t batch_end =
-            std::min(next_sequence + static_cast<int64_t>(batch_size_) - 1,
-                     available_sequence);
+        int64_t batch_end_calc =
+            next_sequence + static_cast<int64_t>(batch_size_) - 1;
+        int64_t batch_end = (batch_end_calc < available_sequence)
+                                ? batch_end_calc
+                                : available_sequence;
         auto result = process_batch(next_sequence, batch_end);
 
         if (result != ConsumerError::SUCCESS) {

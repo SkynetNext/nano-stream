@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <iostream>
 #include <memory>
 #include <nano_stream/nano_stream.h>
@@ -36,7 +37,7 @@ public:
       : order_id_(order_id), price_(price), quantity_(quantity),
         symbol_(std::move(symbol)) {}
 
-  void translate_to(TradeEvent &event, int64_t sequence) override {
+  void translate_to(TradeEvent &event, int64_t /*sequence*/) override {
     event.order_id = order_id_;
     event.price = price_;
     event.quantity = quantity_;
@@ -70,7 +71,8 @@ public:
 // 简化的异常处理器（仅用于向后兼容）
 class LoggingExceptionHandler : public ExceptionHandler<TradeEvent> {
 public:
-  void handle_exception(const std::exception &e, TradeEvent &event, int64_t sequence) override {
+  void handle_exception(const std::exception &e, TradeEvent & /*event*/,
+                        int64_t sequence) override {
     std::cerr << "Error processing event at sequence " << sequence << ": "
               << e.what() << std::endl;
   }
@@ -88,7 +90,8 @@ int main() {
 
   // 创建消费者
   auto event_handler = std::make_unique<TradeEventHandler>("TradeProcessor");
-  Consumer<TradeEvent> consumer(ring_buffer, std::move(event_handler), 10, std::chrono::milliseconds(1));
+  Consumer<TradeEvent> consumer(ring_buffer, std::move(event_handler), 10,
+                                std::chrono::milliseconds(1));
 
   // 设置异常处理器
   consumer.set_exception_handler(std::make_unique<LoggingExceptionHandler>());
@@ -108,9 +111,8 @@ int main() {
 
     for (int i = 0; i < 100; ++i) {
       // 方法1: 使用自定义事件翻译器
-      TradeEventTranslator translator(i, 100.0 + i * 0.1, 100 + i * 10,
-                                      "AAPL");
-      
+      TradeEventTranslator translator(i, 100.0 + i * 0.1, 100 + i * 10, "AAPL");
+
       auto result = ring_buffer.publish_event(translator);
       if (result != RingBufferError::SUCCESS) {
         std::cerr << "Failed to publish event " << i << std::endl;
@@ -118,17 +120,19 @@ int main() {
       }
 
       // 方法2: 使用Lambda事件翻译器
-      auto lambda_translator = LambdaEventTranslator<TradeEvent>([](TradeEvent &event, int64_t sequence) {
-        event.order_id = sequence + 1000;
-        event.price = 200.0 + sequence * 0.05;
-        event.quantity = 50 + sequence * 5;
-        event.symbol = "GOOGL";
-        event.timestamp =
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::high_resolution_clock::now().time_since_epoch())
-                .count();
-      });
-      
+      auto lambda_translator = LambdaEventTranslator<TradeEvent>(
+          [](TradeEvent &event, int64_t sequence) {
+            event.order_id = sequence + 1000;
+            event.price = 200.0 + sequence * 0.05;
+            event.quantity = 50 + sequence * 5;
+            event.symbol = "GOOGL";
+            event.timestamp =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::high_resolution_clock::now()
+                        .time_since_epoch())
+                    .count();
+          });
+
       auto lambda_result = ring_buffer.publish_event(lambda_translator);
 
       if (lambda_result != RingBufferError::SUCCESS) {
@@ -159,7 +163,8 @@ int main() {
                                    "BATCH");
         }
 
-        auto batch_result = ring_buffer.publish_events(translators.data(), 0, 5);
+        auto batch_result =
+            ring_buffer.publish_events(translators.data(), 0, 5);
         if (batch_result != RingBufferError::SUCCESS) {
           std::cerr << "Failed to publish batch " << i << std::endl;
         }
@@ -186,11 +191,14 @@ int main() {
 
   // 打印统计信息
   std::cout << "\n=== Statistics ===" << std::endl;
-  std::cout << "Events processed: " << consumer.get_events_processed() << std::endl;
-  std::cout << "Batches processed: " << consumer.get_batches_processed() << std::endl;
+  std::cout << "Events processed: " << consumer.get_events_processed()
+            << std::endl;
+  std::cout << "Batches processed: " << consumer.get_batches_processed()
+            << std::endl;
   std::cout << "Final sequence: " << consumer.get_sequence() << std::endl;
   std::cout << "Ring buffer cursor: " << ring_buffer.get_cursor() << std::endl;
-  std::cout << "Remaining capacity: " << ring_buffer.remaining_capacity() << std::endl;
+  std::cout << "Remaining capacity: " << ring_buffer.remaining_capacity()
+            << std::endl;
 
   std::cout << "\nAdvanced example completed successfully!" << std::endl;
   return 0;
