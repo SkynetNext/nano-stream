@@ -1,6 +1,14 @@
 #include "aeron/client/publication.h"
 #include "aeron/logbuffer/frame_descriptor.h"
+#include "aeron/logbuffer/log_buffer_descriptor.h"
 #include <cstring>
+
+// Forward declaration for simple notification
+namespace aeron {
+namespace driver {
+class LogBufferManager;
+}
+} // namespace aeron
 
 namespace aeron {
 namespace client {
@@ -34,6 +42,10 @@ PublicationResult Publication::offer(const std::uint8_t *buffer,
 
   if (!is_connected()) {
     return PublicationResult::NOT_CONNECTED;
+  }
+
+  if (!log_buffer_) {
+    return PublicationResult::NOT_CONNECTED; // Log buffer not ready yet
   }
 
   if (length > max_payload_length_) {
@@ -81,7 +93,30 @@ PublicationResult Publication::offer(const std::uint8_t *buffer,
                   logbuffer::FrameDescriptor::HEADER_LENGTH,
               buffer + offset, length);
 
-  // Update position atomically
+  // Update tail counter in log metadata buffer (like Java version)
+  // This is the key: directly update the shared memory metadata
+  if (log_buffer_) {
+    const std::int32_t frame_length = static_cast<std::int32_t>(
+        length + logbuffer::FrameDescriptor::HEADER_LENGTH);
+
+    // Get metadata buffer
+    std::uint8_t *metadata =
+        log_buffer_->memory() +
+        (log_buffer_->size() -
+         logbuffer::LogBufferDescriptor::LOG_META_DATA_LENGTH);
+
+    // Update tail counter for partition 0 (simplified)
+    const std::int32_t tailCounterOffset =
+        logbuffer::LogBufferDescriptor::TERM_TAIL_COUNTERS_OFFSET;
+    std::atomic<std::int64_t> *tailCounter =
+        reinterpret_cast<std::atomic<std::int64_t> *>(metadata +
+                                                      tailCounterOffset);
+
+    // Atomic add like Java's getAndAddLong
+    tailCounter->fetch_add(frame_length);
+  }
+
+  // Update our internal position
   position_.fetch_add(static_cast<std::int64_t>(
       length + logbuffer::FrameDescriptor::HEADER_LENGTH));
 

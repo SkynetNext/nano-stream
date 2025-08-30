@@ -1,5 +1,5 @@
-#include "nano_stream/ring_buffer.h"
-#include "nano_stream/sequence.h"
+#include "disruptor/ring_buffer.h"
+#include "disruptor/sequence.h"
 #include <atomic>
 #include <benchmark/benchmark.h>
 #include <condition_variable>
@@ -10,7 +10,7 @@
 #include <queue>
 #include <thread>
 
-using namespace nano_stream;
+using namespace disruptor;
 
 struct TestEvent {
   int64_t value = 0;

@@ -107,6 +107,7 @@ public:
 private:
   void initializeBuffers();
   void preTouchPages();
+  void initializeNewLogFile(std::int32_t termLength);
 
   std::unique_ptr<util::MemoryMappedFile> memoryMappedFile_;
   std::uint8_t *basePtr_;

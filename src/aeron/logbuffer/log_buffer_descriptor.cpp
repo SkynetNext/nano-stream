@@ -152,5 +152,28 @@ bool LogBufferDescriptor::isWithinTerm(std::int64_t position, int termId,
   return computedTermId == termId;
 }
 
+int LogBufferDescriptor::positionBitsToShift(int termLength) {
+  // Calculate the number of bits to shift based on term length
+  // termLength should be a power of 2
+  int bits = 0;
+  int temp = termLength;
+  while (temp > 1) {
+    temp >>= 1;
+    bits++;
+  }
+  return bits;
+}
+
+int LogBufferDescriptor::indexByPosition(std::int64_t position,
+                                         int positionBitsToShift) {
+  return static_cast<int>((position >> positionBitsToShift) % PARTITION_COUNT);
+}
+
+int LogBufferDescriptor::computeTermIdFromPosition(std::int64_t position,
+                                                   int positionBitsToShift,
+                                                   int initialTermId) {
+  return static_cast<int>((position >> positionBitsToShift) + initialTermId);
+}
+
 } // namespace logbuffer
 } // namespace aeron

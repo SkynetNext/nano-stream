@@ -105,6 +105,8 @@ MediaDriver::MediaDriver(const MediaDriverContext &context)
     receiver_->set_log_buffer_manager(log_buffer_manager_);
     conductor_->set_log_buffer_manager(log_buffer_manager_);
     conductor_->set_aeron_directory(context_.aeron_dir);
+    conductor_->set_sender(sender_);
+    conductor_->set_receiver(receiver_);
 
     std::cout << "MediaDriver initialized with directory: "
               << context_.aeron_dir << std::endl;

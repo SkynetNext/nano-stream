@@ -99,7 +99,16 @@ std::int32_t LogBufferManager::read_publication_data(std::int32_t session_id,
   }
 
   std::int64_t current_position = publication->head_position.load();
-  std::int64_t tail_position = publication->tail_position.load();
+
+  // Read tail position directly from log buffer metadata (like Java
+  // NetworkPublication)
+  std::uint8_t *metadata = publication->log_buffers->logMetaDataBuffer();
+  const std::int32_t tailCounterOffset =
+      logbuffer::LogBufferDescriptor::TERM_TAIL_COUNTERS_OFFSET;
+  std::atomic<std::int64_t> *tailCounter =
+      reinterpret_cast<std::atomic<std::int64_t> *>(metadata +
+                                                    tailCounterOffset);
+  std::int64_t tail_position = tailCounter->load();
 
   if (current_position >= tail_position) {
     return 0; // No new data

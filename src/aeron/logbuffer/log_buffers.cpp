@@ -1,4 +1,5 @@
 #include "aeron/logbuffer/log_buffers.h"
+#include <cstring>
 #include <stdexcept>
 
 namespace aeron {
@@ -9,9 +10,15 @@ LogBuffers::LogBuffers(const std::string &logFileName, bool preTouch)
       initialTermId_(0), mtuLength_(0), correlationId_(0) {
 
   try {
-    // Create memory mapped file
+    // Create memory mapped file with default log buffer size
+    // Calculate the required size: 3 term buffers + metadata
+    const std::int32_t termLength = 64 * 1024; // 64KB per term
+    const std::int32_t partitionCount = 3;
+    const std::size_t totalSize = (partitionCount * termLength) +
+                                  LogBufferDescriptor::LOG_META_DATA_LENGTH;
+
     memoryMappedFile_ =
-        std::make_unique<util::MemoryMappedFile>(logFileName, 0, false);
+        std::make_unique<util::MemoryMappedFile>(logFileName, totalSize, true);
 
     if (!memoryMappedFile_->is_valid()) {
       throw std::runtime_error("Failed to map log file: " + logFileName);
@@ -26,6 +33,9 @@ LogBuffers::LogBuffers(const std::string &logFileName, bool preTouch)
           std::to_string(LogBufferDescriptor::LOG_META_DATA_LENGTH) +
           ": length=" + std::to_string(logLength_));
     }
+
+    // Initialize the log metadata for a newly created file
+    initializeNewLogFile(termLength);
 
     initializeBuffers();
 
@@ -147,6 +157,36 @@ void LogBuffers::preTouchPages() {
       volatile std::uint8_t value = termBuffer[offset];
       (void)value; // Suppress unused variable warning
     }
+  }
+}
+
+void LogBuffers::initializeNewLogFile(std::int32_t termLength) {
+  // Get the metadata buffer
+  std::uint8_t *logMetaDataBuffer =
+      basePtr_ + (logLength_ - LogBufferDescriptor::LOG_META_DATA_LENGTH);
+
+  // Initialize metadata with default values
+  const std::int32_t pageSize = 4096; // 4KB page size
+  const std::int32_t initialTermId = 1;
+  const std::int32_t mtuLength = 1408; // Standard MTU
+  const std::int64_t correlationId = 1;
+
+  // Zero out the metadata buffer first
+  std::memset(logMetaDataBuffer, 0, LogBufferDescriptor::LOG_META_DATA_LENGTH);
+
+  // Set the metadata values
+  LogBufferDescriptor::setTermLength(logMetaDataBuffer, termLength);
+  LogBufferDescriptor::setPageSize(logMetaDataBuffer, pageSize);
+  LogBufferDescriptor::setInitialTermId(logMetaDataBuffer, initialTermId);
+  LogBufferDescriptor::setMtuLength(logMetaDataBuffer, mtuLength);
+  LogBufferDescriptor::setCorrelationId(logMetaDataBuffer, correlationId);
+
+  // Initialize active term count to 0
+  LogBufferDescriptor::activeTermCount(logMetaDataBuffer, 0);
+
+  // Initialize tail counters to 0 for all partitions
+  for (int i = 0; i < LogBufferDescriptor::PARTITION_COUNT; i++) {
+    LogBufferDescriptor::tailCounter(logMetaDataBuffer, i, 0);
   }
 }
 

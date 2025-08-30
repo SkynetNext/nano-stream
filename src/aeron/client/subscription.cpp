@@ -6,6 +6,7 @@
 #include "aeron/logbuffer/frame_descriptor.h"
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 
 namespace aeron {
@@ -248,18 +249,27 @@ Subscription::image_by_session_id(std::int32_t session_id) const {
 
 bool Subscription::is_connected() const {
   if (closed_.load()) {
+    std::cout << "Subscription is closed" << std::endl;
     return false;
   }
 
   std::lock_guard<std::mutex> lock(images_mutex_);
 
+  std::cout << "Subscription has " << images_.size() << " images" << std::endl;
+
   // Connected if we have at least one active image
   for (auto &image : images_) {
     if (!image->is_closed()) {
+      std::cout << "Found active image: session=" << image->session_id()
+                << std::endl;
       return true;
+    } else {
+      std::cout << "Image is closed: session=" << image->session_id()
+                << std::endl;
     }
   }
 
+  std::cout << "No active images found" << std::endl;
   return false;
 }
 

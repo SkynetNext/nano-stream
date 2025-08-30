@@ -81,7 +81,13 @@ std::shared_ptr<Publication> Aeron::add_publication(const std::string &channel,
   message.init(correlation_id, client_id_, stream_id, 0, channel.c_str());
 
   // Send control message to driver
-  send_control_message(message.header);
+  send_control_message(message);
+
+  // Wait for driver to create the log buffer and get the file path
+  // In a real implementation, this would be asynchronous with proper response
+  // handling
+  std::this_thread::sleep_for(
+      std::chrono::milliseconds(100)); // Give driver time to create log buffer
 
   // Create publication object
   // In a real implementation, we would wait for driver response and get actual
@@ -89,12 +95,13 @@ std::shared_ptr<Publication> Aeron::add_publication(const std::string &channel,
   std::int32_t session_id =
       static_cast<std::int32_t>(correlation_id & 0xFFFFFFFF);
 
-  // Create log buffer that will be shared with Media Driver
-  // Use the same file name that Conductor will create
+  // Now open the log buffer file created by the driver
   std::string log_file_name = "pub-" + std::to_string(registration_id);
+  std::string full_log_path =
+      util::PathUtils::join_path(context_.aeron_dir, log_file_name);
+
   auto log_buffer = std::make_unique<util::MemoryMappedFile>(
-      util::PathUtils::join_path(context_.aeron_dir, log_file_name), 64 * 1024,
-      false); // Open existing file created by Media Driver
+      full_log_path, 0, false); // Open existing file created by Media Driver
 
   auto publication = std::make_shared<Publication>(
       channel, stream_id, session_id, registration_id, std::move(log_buffer));
@@ -124,27 +131,87 @@ Aeron::add_subscription(const std::string &channel, std::int32_t stream_id) {
 
   // Create subscription message
   protocol::SubscriptionMessage message;
+
+  // Debug: Check structure layout
+  std::cout << "=== DEBUG: SubscriptionMessage layout ===" << std::endl;
+  std::cout << "sizeof(ControlMessageHeader) = "
+            << sizeof(protocol::ControlMessageHeader) << std::endl;
+  std::cout << "sizeof(std::int32_t) = " << sizeof(std::int32_t) << std::endl;
+  std::cout << "sizeof(std::int64_t) = " << sizeof(std::int64_t) << std::endl;
+  std::cout << "sizeof(SubscriptionMessage) = "
+            << sizeof(protocol::SubscriptionMessage) << std::endl;
+  std::cout << "BASE_LENGTH = " << protocol::SubscriptionMessage::BASE_LENGTH
+            << std::endl;
+  std::cout << "Expected channel_length offset = "
+            << (sizeof(protocol::ControlMessageHeader) + sizeof(std::int32_t) +
+                sizeof(std::int64_t))
+            << std::endl;
+  std::cout << "Actual channel_length offset = "
+            << (reinterpret_cast<std::uint8_t *>(&message.channel_length) -
+                reinterpret_cast<std::uint8_t *>(&message))
+            << std::endl;
+  std::cout.flush();
+
+  // Debug: Check message state before init
+  std::cout << "=== DEBUG: Before init - channel_length = "
+            << message.channel_length << " ===" << std::endl;
+  std::cout.flush();
+
   message.init(correlation_id, client_id_, stream_id, registration_id,
                channel.c_str());
 
+  // Debug: Check message state after init
+  std::cout << "=== DEBUG: After init - channel_length = "
+            << message.channel_length << " ===" << std::endl;
+  std::cout << "=== DEBUG: After init - channel = " << channel
+            << " ===" << std::endl;
+  std::cout << "=== DEBUG: After init - channel length should be = "
+            << channel.length() << " ===" << std::endl;
+
+  // Debug: Check if this is a memory alignment issue
+  std::cout << "=== DEBUG: Checking memory alignment ===" << std::endl;
+  std::cout << "message.stream_id = " << message.stream_id << std::endl;
+  std::cout << "message.registration_id = " << message.registration_id
+            << std::endl;
+  std::cout << "message.header.correlation_id = "
+            << message.header.correlation_id << std::endl;
+  std::cout << "message.header.client_id = " << message.header.client_id
+            << std::endl;
+
+  // Check if channel_length is reading from wrong memory location
+  std::uint8_t *raw_bytes = reinterpret_cast<std::uint8_t *>(&message);
+  std::size_t expected_offset = sizeof(protocol::ControlMessageHeader) +
+                                sizeof(std::int32_t) + sizeof(std::int64_t);
+  std::int32_t *raw_channel_length =
+      reinterpret_cast<std::int32_t *>(raw_bytes + expected_offset);
+  std::cout << "=== DEBUG: Raw channel_length at expected offset = "
+            << *raw_channel_length << " ===" << std::endl;
+  std::cout.flush();
+
   // Send control message to driver
-  send_control_message(message.header);
+  send_control_message(message);
 
   // Create subscription object
   auto subscription =
       std::make_shared<Subscription>(channel, stream_id, registration_id);
 
   // Create a dummy image for testing
-  auto log_buffer = std::make_unique<util::MemoryMappedFile>(
-      util::PathUtils::join_path(context_.aeron_dir,
-                                 "sub-" + std::to_string(registration_id)),
-      64 * 1024, true);
+  try {
+    auto log_buffer = std::make_unique<util::MemoryMappedFile>(
+        util::PathUtils::join_path(context_.aeron_dir,
+                                   "sub-" + std::to_string(registration_id)),
+        64 * 1024, true);
 
-  auto image = std::make_shared<Image>(
-      static_cast<std::int32_t>(correlation_id & 0xFFFFFFFF), correlation_id,
-      std::move(log_buffer));
+    auto image = std::make_shared<Image>(
+        static_cast<std::int32_t>(correlation_id & 0xFFFFFFFF), correlation_id,
+        std::move(log_buffer));
 
-  subscription->add_image(image);
+    subscription->add_image(image);
+    std::cout << "Created dummy image for subscription" << std::endl;
+  } catch (const std::exception &e) {
+    std::cerr << "Failed to create dummy image: " << e.what() << std::endl;
+    // Continue without image for now
+  }
 
   // Store subscription
   {
@@ -304,6 +371,55 @@ void Aeron::send_control_message(
             << ", correlation_id=" << message.correlation_id << std::endl;
 }
 
+void Aeron::send_control_message(const protocol::PublicationMessage &message) {
+  if (!to_driver_buffer_) {
+    std::cerr << "No to-driver buffer available" << std::endl;
+    return;
+  }
+
+  std::uint8_t *buffer = to_driver_buffer_->memory();
+  if (!buffer) {
+    std::cerr << "Failed to get memory address for to-driver buffer"
+              << std::endl;
+    return;
+  }
+
+  // Write the complete message (including channel data) to the shared memory
+  // buffer
+  std::memcpy(buffer, &message, message.header.length);
+
+  // Log the message for debugging
+  std::cout << "Sending publication message: type="
+            << static_cast<int>(message.header.type)
+            << ", correlation_id=" << message.header.correlation_id
+            << ", channel=" << message.channel_data() << std::endl;
+}
+
+void Aeron::send_control_message(const protocol::SubscriptionMessage &message) {
+  if (!to_driver_buffer_) {
+    std::cerr << "No to-driver buffer available" << std::endl;
+    return;
+  }
+
+  std::uint8_t *buffer = to_driver_buffer_->memory();
+  if (!buffer) {
+    std::cerr << "Failed to get memory address for to-driver buffer"
+              << std::endl;
+    return;
+  }
+
+  // Write the complete message (including channel data) to the shared memory
+  // buffer
+  std::memcpy(buffer, &message, message.header.length);
+
+  // Log the message for debugging
+  std::cout << "Sending subscription message: type="
+            << static_cast<int>(message.header.type)
+            << ", correlation_id=" << message.header.correlation_id
+            << ", channel_length=" << message.channel_length
+            << ", channel=" << message.channel_data() << std::endl;
+}
+
 void Aeron::process_driver_responses() {
   if (!to_client_buffer_) {
     return;
@@ -405,6 +521,9 @@ void Aeron::handle_driver_response(const protocol::ResponseMessage &response) {
   case protocol::ResponseCode::ON_SUBSCRIPTION_READY:
     handle_subscription_ready_response(response);
     break;
+  case protocol::ResponseCode::ON_OPERATION_SUCCESS:
+    handle_operation_success_response(response);
+    break;
   case protocol::ResponseCode::ON_ERROR:
     handle_error_response(response);
     break;
@@ -437,6 +556,18 @@ void Aeron::handle_subscription_ready_response(
 
   std::cout << "Subscription ready: correlation_id=" << response.correlation_id
             << std::endl;
+}
+
+void Aeron::handle_operation_success_response(
+    const protocol::ResponseMessage &response) {
+  // Handle successful operation response
+  // In a real implementation, this would:
+  // 1. Find the request by correlation_id
+  // 2. Update the state to SUCCESS
+  // 3. Notify waiting threads
+
+  std::cout << "Operation success: correlation_id=" << response.correlation_id
+            << ", registration_id=" << response.registration_id << std::endl;
 }
 
 void Aeron::handle_error_response(const protocol::ResponseMessage &response) {

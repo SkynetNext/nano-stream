@@ -265,6 +265,23 @@ public:
    */
   static bool isWithinTerm(std::int64_t position, int termId, int termLength,
                            int positionBitsToShift, int initialTermId);
+
+  /**
+   * Get the position bits to shift for a given term length.
+   */
+  static int positionBitsToShift(int termLength);
+
+  /**
+   * Get the partition index from position.
+   */
+  static int indexByPosition(std::int64_t position, int positionBitsToShift);
+
+  /**
+   * Compute the term id from position.
+   */
+  static int computeTermIdFromPosition(std::int64_t position,
+                                       int positionBitsToShift,
+                                       int initialTermId);
 };
 
 } // namespace logbuffer

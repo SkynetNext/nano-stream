@@ -37,6 +37,14 @@ void Conductor::set_aeron_directory(const std::string &aeron_dir) {
   aeron_dir_ = aeron_dir;
 }
 
+void Conductor::set_sender(std::unique_ptr<class Sender> &sender) {
+  sender_ = &sender;
+}
+
+void Conductor::set_receiver(std::unique_ptr<class Receiver> &receiver) {
+  receiver_ = &receiver;
+}
+
 void Conductor::start() {
   if (running_.load()) {
     return;
@@ -151,20 +159,25 @@ void Conductor::handle_add_publication(
     // Create log buffers for this publication - use the same file name as
     // client
     std::string log_file_name = "pub-" + std::to_string(registration_id);
+    std::string full_log_path =
+        util::PathUtils::join_path(aeron_dir_, log_file_name);
 
-    // Create the log buffer file first
-    auto log_buffer_file = std::make_unique<util::MemoryMappedFile>(
-        util::PathUtils::join_path(aeron_dir_, log_file_name), 64 * 1024,
-        true); // Create new file
-
+    // Create log buffers with the full path
     auto log_buffers =
-        std::make_shared<logbuffer::LogBuffers>(log_file_name, false);
+        std::make_shared<logbuffer::LogBuffers>(full_log_path, false);
     log_buffer_manager_->add_publication(session_id, message.stream_id,
                                          registration_id, log_buffers);
 
     std::cout << "Added publication to log buffer manager: session="
               << session_id << ", stream=" << message.stream_id
-              << ", file=" << log_file_name << std::endl;
+              << ", file=" << full_log_path << std::endl;
+  }
+
+  // Also add to Sender for network transmission
+  if (sender_) {
+    std::string channel =
+        std::string(message.channel_data(), message.channel_length);
+    (*sender_)->add_publication(session_id, message.stream_id, channel);
   }
 
   // Send success response
@@ -199,12 +212,37 @@ void Conductor::handle_add_subscription(
   // Create subscription record
   auto subscription = std::make_unique<Subscription>();
   subscription->stream_id = message.stream_id;
+
+  // Debug: Check channel_length issue
+  std::cout << "=== DEBUG: channel_length = " << message.channel_length
+            << " (should be ~50-100) ===" << std::endl;
+  std::cout.flush();
+
+  // Check if the length is reasonable
+  if (message.channel_length <= 0 || message.channel_length > 1000) {
+    std::cout << "=== ERROR: Invalid channel_length: " << message.channel_length
+              << " ===" << std::endl;
+    std::cout.flush();
+    return; // Exit early to avoid crash
+  }
+
   subscription->channel =
       std::string(message.channel_data(), message.channel_length);
+
   subscription->registration_id = registration_id;
   subscription->client_id = message.header.client_id;
 
   subscriptions_[registration_id] = std::move(subscription);
+
+  // Also add to Receiver for network reception
+  if (receiver_) {
+    std::string channel =
+        std::string(message.channel_data(), message.channel_length);
+
+    (*receiver_)->add_subscription(message.stream_id, channel);
+  } else {
+    std::cout << "=== WARNING: Receiver is null ===" << std::endl;
+  }
 
   // Send success response
   protocol::ResponseMessage response;

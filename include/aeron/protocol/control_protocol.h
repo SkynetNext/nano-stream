@@ -62,6 +62,9 @@ struct PublicationMessage {
     session_id = session;
     channel_length = static_cast<std::int32_t>(std::strlen(channel));
     header.length = BASE_LENGTH + channel_length;
+
+    // Copy channel string to the variable length part
+    std::memcpy(channel_data(), channel, channel_length);
   }
 
   char *channel_data() { return reinterpret_cast<char *>(this) + BASE_LENGTH; }
@@ -74,6 +77,7 @@ struct PublicationMessage {
 /**
  * Subscription control message.
  */
+#pragma pack(push, 1)
 struct SubscriptionMessage {
   ControlMessageHeader header;
   std::int32_t stream_id;
@@ -93,6 +97,9 @@ struct SubscriptionMessage {
     registration_id = reg_id;
     channel_length = static_cast<std::int32_t>(std::strlen(channel));
     header.length = BASE_LENGTH + channel_length;
+
+    // Copy channel string to the variable length part
+    std::memcpy(channel_data(), channel, channel_length);
   }
 
   char *channel_data() { return reinterpret_cast<char *>(this) + BASE_LENGTH; }
@@ -101,6 +108,7 @@ struct SubscriptionMessage {
     return reinterpret_cast<const char *>(this) + BASE_LENGTH;
   }
 };
+#pragma pack(pop)
 
 /**
  * Client keepalive message.

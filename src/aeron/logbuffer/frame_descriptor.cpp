@@ -136,5 +136,10 @@ bool FrameDescriptor::isUnfragmented(const std::uint8_t *buffer,
   return frameFlags(buffer, offset) == UNFRAGMENTED;
 }
 
+std::int32_t FrameDescriptor::align(std::int32_t value,
+                                    std::int32_t alignment) {
+  return (value + alignment - 1) & ~(alignment - 1);
+}
+
 } // namespace logbuffer
 } // namespace aeron

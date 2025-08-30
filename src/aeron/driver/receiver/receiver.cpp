@@ -485,13 +485,20 @@ bool Receiver::create_socket(ReceiveEndpoint &endpoint) {
 
 bool Receiver::parse_channel_uri(const std::string &channel,
                                  ReceiveEndpoint &endpoint) {
-  // Simple URI parsing for "aeron:udp?endpoint=host:port"
+  // Simple URI parsing for "aeron:udp?endpoint=host:port|control=host:port"
   if (channel.find("aeron:udp?endpoint=") != 0) {
     std::cerr << "Unsupported channel URI: " << channel << std::endl;
     return false;
   }
 
   std::string endpoint_str = channel.substr(19); // Skip "aeron:udp?endpoint="
+
+  // Handle optional control part: "|control=host:port"
+  size_t pipe_pos = endpoint_str.find('|');
+  if (pipe_pos != std::string::npos) {
+    endpoint_str = endpoint_str.substr(0, pipe_pos);
+  }
+
   size_t colon_pos = endpoint_str.find(':');
 
   if (colon_pos == std::string::npos) {

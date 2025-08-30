@@ -186,6 +186,11 @@ public:
    * Check if the frame is unfragmented.
    */
   static bool isUnfragmented(const std::uint8_t *buffer, std::int32_t offset);
+
+  /**
+   * Align a value to the given alignment.
+   */
+  static std::int32_t align(std::int32_t value, std::int32_t alignment);
 };
 
 } // namespace logbuffer

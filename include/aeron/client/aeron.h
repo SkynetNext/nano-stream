@@ -147,6 +147,16 @@ private:
   void send_control_message(const protocol::ControlMessageHeader &message);
 
   /**
+   * Send publication message to Media Driver.
+   */
+  void send_control_message(const protocol::PublicationMessage &message);
+
+  /**
+   * Send subscription message to Media Driver.
+   */
+  void send_control_message(const protocol::SubscriptionMessage &message);
+
+  /**
    * Process responses from Media Driver.
    */
   void process_driver_responses();
@@ -182,6 +192,12 @@ private:
    */
   void
   handle_subscription_ready_response(const protocol::ResponseMessage &response);
+
+  /**
+   * Handle operation success response.
+   */
+  void
+  handle_operation_success_response(const protocol::ResponseMessage &response);
 
   /**
    * Handle error response.

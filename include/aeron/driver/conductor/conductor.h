@@ -65,6 +65,16 @@ public:
   void set_aeron_directory(const std::string &aeron_dir);
 
   /**
+   * Set sender reference (called by Media Driver).
+   */
+  void set_sender(std::unique_ptr<class Sender> &sender);
+
+  /**
+   * Set receiver reference (called by Media Driver).
+   */
+  void set_receiver(std::unique_ptr<class Receiver> &receiver);
+
+  /**
    * Main conductor loop (runs in separate thread).
    */
   void run();
@@ -199,6 +209,8 @@ private:
   std::unique_ptr<util::MemoryMappedFile> control_request_buffer_;
   std::unique_ptr<util::MemoryMappedFile> control_response_buffer_;
   std::shared_ptr<LogBufferManager> log_buffer_manager_;
+  std::unique_ptr<class Sender> *sender_;
+  std::unique_ptr<class Receiver> *receiver_;
 
   // Configuration
   std::string aeron_dir_;

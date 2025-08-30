@@ -1,10 +1,10 @@
-#include "nano_stream/sequence.h"
+#include "disruptor/sequence.h"
 #include <atomic>
 #include <benchmark/benchmark.h>
 #include <cstdint>
 #include <thread>
 
-using namespace nano_stream;
+using namespace disruptor;
 
 // Benchmark basic sequence operations
 static void BM_SequenceGet(benchmark::State &state) {
