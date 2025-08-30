@@ -21,7 +21,7 @@ class JournalHandler : public EventHandler<TradeEvent> {
 public:
   void on_event(TradeEvent &event, int64_t sequence,
                 bool end_of_batch) override {
-    std::cout << "Journal: Writing trade " << event.order_id
+    std::cout << "[Journal] Writing trade " << event.order_id
               << " to persistent log" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Simulate I/O
   }
@@ -31,7 +31,7 @@ class ReplicationHandler : public EventHandler<TradeEvent> {
 public:
   void on_event(TradeEvent &event, int64_t sequence,
                 bool end_of_batch) override {
-    std::cout << "Replication: Sending trade " << event.order_id
+    std::cout << "[Replication] Sending trade " << event.order_id
               << " to backup server" << std::endl;
     std::this_thread::sleep_for(
         std::chrono::milliseconds(15)); // Simulate network
@@ -42,7 +42,7 @@ class BusinessLogicHandler : public EventHandler<TradeEvent> {
 public:
   void on_event(TradeEvent &event, int64_t sequence,
                 bool end_of_batch) override {
-    std::cout << "Business: Processing trade " << event.order_id << " - "
+    std::cout << "[Business] Processing trade " << event.order_id << " - "
               << event.quantity << " " << event.symbol << " @ " << event.price
               << std::endl;
     std::this_thread::sleep_for(

@@ -1,5 +1,4 @@
 #include "aeron/driver/conductor/conductor.h"
-#include "aeron/util/path_utils.h"
 #include <chrono>
 #include <iostream>
 

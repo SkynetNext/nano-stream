@@ -6,7 +6,6 @@
 #include "sequence_barrier.h"
 #include <functional>
 #include <memory>
-#include <thread>
 #include <vector>
 
 namespace disruptor {

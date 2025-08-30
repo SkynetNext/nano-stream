@@ -7,7 +7,6 @@
 
 #include "sequence.h"
 #include "wait_strategy.h"
-#include <algorithm> // for std::min
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -125,17 +124,15 @@ private:
   std::unique_ptr<FixedSequenceGroup> dependent_sequence_;
   std::atomic<bool> alerted_{false};
   const Sequence &cursor_sequence_;
-  const Sequence &ring_buffer_cursor_;
 
 public:
   ProcessingSequenceBarrier(
       std::unique_ptr<WaitStrategy> wait_strategy,
-      const Sequence &cursor_sequence, const Sequence &ring_buffer_cursor,
+      const Sequence &cursor_sequence,
       const std::vector<std::reference_wrapper<const Sequence>>
           &dependent_sequences)
       : wait_strategy_(std::move(wait_strategy)),
-        cursor_sequence_(cursor_sequence),
-        ring_buffer_cursor_(ring_buffer_cursor) {
+        cursor_sequence_(cursor_sequence) {
     if (dependent_sequences.empty()) {
       dependent_sequence_ = std::make_unique<FixedSequenceGroup>(
           std::vector<std::reference_wrapper<const Sequence>>{cursor_sequence});

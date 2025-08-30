@@ -774,7 +774,7 @@ public:
     }
 
     return std::make_unique<ProcessingSequenceBarrier>(
-        std::move(wait_strategy_copy), cursor_, cursor_, dependent_sequences);
+        std::move(wait_strategy_copy), cursor_, dependent_sequences);
   }
 
   /**
