@@ -1,5 +1,5 @@
-#include "nano_stream/event_translator.h"
-#include "nano_stream/ring_buffer.h"
+#include "disruptor/event_translator.h"
+#include "disruptor/ring_buffer.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <thread>
 
-using namespace nano_stream;
+using namespace disruptor;
 
 // Simple test event
 struct TestEvent {

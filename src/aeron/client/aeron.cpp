@@ -85,15 +85,16 @@ std::shared_ptr<Publication> Aeron::add_publication(const std::string &channel,
 
   // Create publication object
   // In a real implementation, we would wait for driver response and get actual
-  // session_id
+  // session_id and log buffer file name
   std::int32_t session_id =
       static_cast<std::int32_t>(correlation_id & 0xFFFFFFFF);
 
-  // Create dummy log buffer
+  // Create log buffer that will be shared with Media Driver
+  // Use the same file name that Conductor will create
+  std::string log_file_name = "pub-" + std::to_string(registration_id);
   auto log_buffer = std::make_unique<util::MemoryMappedFile>(
-      util::PathUtils::join_path(context_.aeron_dir,
-                                 "pub-" + std::to_string(registration_id)),
-      64 * 1024, true);
+      util::PathUtils::join_path(context_.aeron_dir, log_file_name), 64 * 1024,
+      false); // Open existing file created by Media Driver
 
   auto publication = std::make_shared<Publication>(
       channel, stream_id, session_id, registration_id, std::move(log_buffer));
@@ -279,25 +280,64 @@ void Aeron::close() {
 
 void Aeron::send_control_message(
     const protocol::ControlMessageHeader &message) {
-  // In a real implementation, this would:
-  // 1. Serialize the message to the to_driver_buffer_
-  // 2. Signal the media driver that a new message is available
-  // 3. Wait for response if needed
+  if (!to_driver_buffer_) {
+    std::cerr << "No to-driver buffer available" << std::endl;
+    return;
+  }
 
-  // For now, just log the message
+  std::uint8_t *buffer = to_driver_buffer_->memory();
+  if (!buffer) {
+    std::cerr << "Failed to get memory address for to-driver buffer"
+              << std::endl;
+    return;
+  }
+
+  // Write the message to the shared memory buffer
+  // This is a simplified implementation - in the real Aeron, this would use
+  // proper buffer management with read/write cursors
+
+  std::memcpy(buffer, &message, message.length);
+
+  // Log the message for debugging
   std::cout << "Sending control message: type="
             << static_cast<int>(message.type)
             << ", correlation_id=" << message.correlation_id << std::endl;
 }
 
 void Aeron::process_driver_responses() {
-  // In a real implementation, this would:
-  // 1. Read responses from to_client_buffer_
-  // 2. Parse and dispatch responses
-  // 3. Update publication/subscription states
-  // 4. Notify waiting threads
+  if (!to_client_buffer_) {
+    return;
+  }
 
-  // For now, this is a no-op
+  std::uint8_t *buffer = to_client_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Read response messages from shared memory buffer
+  // This is a simplified implementation - in the real Aeron, this would use
+  // proper buffer management with read/write cursors
+
+  // For now, we'll just check if there's any data in the buffer
+  // In a real implementation, we would:
+  // 1. Read the response header to determine message type and length
+  // 2. Parse the full response message
+  // 3. Dispatch to appropriate handler based on message type
+  // 4. Update publication/subscription states
+  // 5. Notify waiting threads
+
+  // Check if there's a response message (simplified check)
+  protocol::ResponseMessage *response =
+      reinterpret_cast<protocol::ResponseMessage *>(buffer);
+
+  // Simple check: if correlation_id is not 0, assume there's a response
+  if (response && response->correlation_id != 0) {
+    handle_driver_response(*response);
+
+    // Clear the response (in a real implementation, this would update read
+    // cursor)
+    std::memset(buffer, 0, sizeof(*response));
+  }
 }
 
 void Aeron::send_keepalive() {
@@ -347,15 +387,67 @@ void Aeron::conductor_run() {
 }
 
 void Aeron::handle_driver_response(const protocol::ResponseMessage &response) {
-  // In a real implementation, this would:
-  // 1. Match the response to pending requests using correlation_id
-  // 2. Update publication/subscription states
-  // 3. Notify waiting threads
-  // 4. Call appropriate callbacks
-
   std::cout << "Received driver response: type="
             << static_cast<int>(response.type)
             << ", correlation_id=" << response.correlation_id << std::endl;
+
+  // Match the response to pending requests using correlation_id
+  // In a real implementation, this would:
+  // 1. Look up the pending request in a map using correlation_id
+  // 2. Update publication/subscription states based on response
+  // 3. Notify waiting threads
+  // 4. Call appropriate callbacks
+
+  switch (response.type) {
+  case protocol::ResponseCode::ON_PUBLICATION_READY:
+    handle_publication_ready_response(response);
+    break;
+  case protocol::ResponseCode::ON_SUBSCRIPTION_READY:
+    handle_subscription_ready_response(response);
+    break;
+  case protocol::ResponseCode::ON_ERROR:
+    handle_error_response(response);
+    break;
+  default:
+    std::cout << "Unknown response type: " << static_cast<int>(response.type)
+              << std::endl;
+    break;
+  }
+}
+
+void Aeron::handle_publication_ready_response(
+    const protocol::ResponseMessage &response) {
+  // Update publication state
+  // In a real implementation, this would:
+  // 1. Find the publication by correlation_id
+  // 2. Update its state to READY
+  // 3. Notify any waiting threads
+
+  std::cout << "Publication ready: correlation_id=" << response.correlation_id
+            << std::endl;
+}
+
+void Aeron::handle_subscription_ready_response(
+    const protocol::ResponseMessage &response) {
+  // Update subscription state
+  // In a real implementation, this would:
+  // 1. Find the subscription by correlation_id
+  // 2. Update its state to READY
+  // 3. Notify any waiting threads
+
+  std::cout << "Subscription ready: correlation_id=" << response.correlation_id
+            << std::endl;
+}
+
+void Aeron::handle_error_response(const protocol::ResponseMessage &response) {
+  // Handle error response
+  // In a real implementation, this would:
+  // 1. Find the request by correlation_id
+  // 2. Set error state
+  // 3. Notify waiting threads with error
+
+  std::cout << "Error response: correlation_id=" << response.correlation_id
+            << std::endl;
 }
 
 } // namespace client

@@ -2,6 +2,7 @@
 
 #include "../../protocol/control_protocol.h"
 #include "../../util/memory_mapped_file.h"
+#include "../log_buffer_manager.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -54,6 +55,16 @@ public:
                       std::unique_ptr<util::MemoryMappedFile> response_buffer);
 
   /**
+   * Set log buffer manager (called by Media Driver).
+   */
+  void set_log_buffer_manager(std::shared_ptr<LogBufferManager> manager);
+
+  /**
+   * Set aeron directory (called by Media Driver).
+   */
+  void set_aeron_directory(const std::string &aeron_dir);
+
+  /**
    * Main conductor loop (runs in separate thread).
    */
   void run();
@@ -87,6 +98,36 @@ private:
    * Process incoming control messages from clients.
    */
   void process_control_messages();
+
+  /**
+   * Read control message header from shared memory buffer.
+   */
+  bool read_control_message_header(protocol::ControlMessageHeader &header);
+
+  /**
+   * Handle add publication message from shared memory.
+   */
+  void handle_add_publication_message();
+
+  /**
+   * Handle remove publication message from shared memory.
+   */
+  void handle_remove_publication_message();
+
+  /**
+   * Handle add subscription message from shared memory.
+   */
+  void handle_add_subscription_message();
+
+  /**
+   * Handle remove subscription message from shared memory.
+   */
+  void handle_remove_subscription_message();
+
+  /**
+   * Handle client keepalive message from shared memory.
+   */
+  void handle_client_keepalive_message();
 
   /**
    * Handle add publication request.
@@ -157,6 +198,10 @@ private:
   // Control message communication (shared memory)
   std::unique_ptr<util::MemoryMappedFile> control_request_buffer_;
   std::unique_ptr<util::MemoryMappedFile> control_response_buffer_;
+  std::shared_ptr<LogBufferManager> log_buffer_manager_;
+
+  // Configuration
+  std::string aeron_dir_;
 
   // Configuration
   static constexpr std::int64_t CLIENT_TIMEOUT_MS = 5000;

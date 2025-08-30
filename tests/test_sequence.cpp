@@ -1,4 +1,4 @@
-#include "nano_stream/sequence.h"
+#include "disruptor/sequence.h"
 #include <atomic>
 #include <gtest/gtest.h>
 #include <memory>
@@ -6,7 +6,7 @@
 #include <thread>
 #include <vector>
 
-using namespace nano_stream;
+using namespace disruptor;
 
 class SequenceTest : public ::testing::Test {
 protected:

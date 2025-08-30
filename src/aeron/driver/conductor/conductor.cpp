@@ -1,6 +1,15 @@
 #include "aeron/driver/conductor/conductor.h"
+#include "aeron/driver/media_driver.h"
 #include <chrono>
 #include <iostream>
+
+// Forward declaration
+namespace aeron {
+namespace driver {
+// We'll use a different approach to get the aeron directory
+extern MediaDriver *g_media_driver;
+} // namespace driver
+} // namespace aeron
 
 namespace aeron {
 namespace driver {
@@ -17,6 +26,15 @@ void Conductor::set_control_buffers(
     std::unique_ptr<util::MemoryMappedFile> response_buffer) {
   control_request_buffer_ = std::move(request_buffer);
   control_response_buffer_ = std::move(response_buffer);
+}
+
+void Conductor::set_log_buffer_manager(
+    std::shared_ptr<LogBufferManager> manager) {
+  log_buffer_manager_ = manager;
+}
+
+void Conductor::set_aeron_directory(const std::string &aeron_dir) {
+  aeron_dir_ = aeron_dir;
 }
 
 void Conductor::start() {
@@ -69,22 +87,53 @@ void Conductor::run() {
 }
 
 void Conductor::process_control_messages() {
-  // Placeholder implementation - would read from shared memory buffer
-  // and process control messages from clients
+  if (!control_request_buffer_ || !control_response_buffer_) {
+    return;
+  }
 
-  // In a real implementation, this would:
-  // 1. Read messages from control_request_buffer_
-  // 2. Parse the message type and dispatch to appropriate handler
-  // 3. Send responses via control_response_buffer_
+  // Read control messages from shared memory buffer
+  // This is a simplified implementation - in the real Aeron, this would use
+  // a more sophisticated buffer management system
+
+  try {
+    // Read message header to determine message type
+    protocol::ControlMessageHeader header;
+    if (read_control_message_header(header)) {
+      switch (header.type) {
+      case protocol::ControlMessageType::ADD_PUBLICATION:
+        handle_add_publication_message();
+        break;
+      case protocol::ControlMessageType::REMOVE_PUBLICATION:
+        handle_remove_publication_message();
+        break;
+      case protocol::ControlMessageType::ADD_SUBSCRIPTION:
+        handle_add_subscription_message();
+        break;
+      case protocol::ControlMessageType::REMOVE_SUBSCRIPTION:
+        handle_remove_subscription_message();
+        break;
+      case protocol::ControlMessageType::CLIENT_KEEPALIVE:
+        handle_client_keepalive_message();
+        break;
+      default:
+        std::cerr << "Unknown message type: " << static_cast<int>(header.type)
+                  << std::endl;
+        break;
+      }
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Error processing control messages: " << e.what() << std::endl;
+  }
 }
 
 void Conductor::handle_add_publication(
     const protocol::PublicationMessage &message) {
   std::lock_guard<std::mutex> lock(publications_mutex_);
 
-  // Generate unique session and registration IDs
+  // Generate unique session ID, but use correlation_id as registration_id
+  // to match what the client expects
   std::int32_t session_id = generate_session_id();
-  std::int64_t registration_id = generate_registration_id();
+  std::int64_t registration_id = message.header.correlation_id;
 
   // Create publication record
   auto publication = std::make_unique<Publication>();
@@ -96,6 +145,27 @@ void Conductor::handle_add_publication(
   publication->client_id = message.header.client_id;
 
   publications_[registration_id] = std::move(publication);
+
+  // Add to log buffer manager for Sender to process
+  if (log_buffer_manager_) {
+    // Create log buffers for this publication - use the same file name as
+    // client
+    std::string log_file_name = "pub-" + std::to_string(registration_id);
+
+    // Create the log buffer file first
+    auto log_buffer_file = std::make_unique<util::MemoryMappedFile>(
+        util::PathUtils::join_path(aeron_dir_, log_file_name), 64 * 1024,
+        true); // Create new file
+
+    auto log_buffers =
+        std::make_shared<logbuffer::LogBuffers>(log_file_name, false);
+    log_buffer_manager_->add_publication(session_id, message.stream_id,
+                                         registration_id, log_buffers);
+
+    std::cout << "Added publication to log buffer manager: session="
+              << session_id << ", stream=" << message.stream_id
+              << ", file=" << log_file_name << std::endl;
+  }
 
   // Send success response
   protocol::ResponseMessage response;
@@ -219,10 +289,159 @@ void Conductor::check_client_timeouts() {
   }
 }
 
+bool Conductor::read_control_message_header(
+    protocol::ControlMessageHeader &header) {
+  if (!control_request_buffer_) {
+    return false;
+  }
+
+  // Read header from shared memory buffer
+  // This is a simplified implementation - in the real Aeron, this would use
+  // proper buffer management with read/write cursors
+
+  std::uint8_t *buffer = control_request_buffer_->memory();
+  if (!buffer) {
+    return false;
+  }
+
+  // Check if there's a valid message at the beginning of the buffer
+  // In a real implementation, we would check message length and validity
+  std::memcpy(&header, buffer, sizeof(header));
+
+  // Basic validation - check if the message type is valid
+  if (header.type < protocol::ControlMessageType::ADD_PUBLICATION ||
+      header.type > protocol::ControlMessageType::CLIENT_TIMEOUT) {
+    return false; // Invalid message type
+  }
+
+  // Check if the message length is reasonable
+  if (static_cast<std::size_t>(header.length) <
+          sizeof(protocol::ControlMessageHeader) ||
+      static_cast<std::size_t>(header.length) >
+          control_request_buffer_->size()) {
+    return false; // Invalid message length
+  }
+
+  return true; // Valid message found
+}
+
+void Conductor::handle_add_publication_message() {
+  // Read the full publication message from shared memory
+  if (!control_request_buffer_) {
+    return;
+  }
+
+  std::uint8_t *buffer = control_request_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Read the publication message
+  protocol::PublicationMessage *message =
+      reinterpret_cast<protocol::PublicationMessage *>(buffer);
+
+  // Call the existing handler
+  handle_add_publication(*message);
+}
+
+void Conductor::handle_remove_publication_message() {
+  // Read the remove publication message from shared memory
+  if (!control_request_buffer_) {
+    return;
+  }
+
+  std::uint8_t *buffer = control_request_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Read the message header to get correlation_id and client_id
+  protocol::ControlMessageHeader *header =
+      reinterpret_cast<protocol::ControlMessageHeader *>(buffer);
+
+  // For now, use a placeholder registration_id
+  // In a real implementation, we would read the actual registration_id from the
+  // message
+  std::int64_t registration_id = 0; // TODO: Read from message
+
+  handle_remove_publication(registration_id, header->client_id);
+}
+
+void Conductor::handle_add_subscription_message() {
+  // Read the full subscription message from shared memory
+  if (!control_request_buffer_) {
+    return;
+  }
+
+  std::uint8_t *buffer = control_request_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Read the subscription message
+  protocol::SubscriptionMessage *message =
+      reinterpret_cast<protocol::SubscriptionMessage *>(buffer);
+
+  // Call the existing handler
+  handle_add_subscription(*message);
+}
+
+void Conductor::handle_remove_subscription_message() {
+  // Read the remove subscription message from shared memory
+  if (!control_request_buffer_) {
+    return;
+  }
+
+  std::uint8_t *buffer = control_request_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Read the message header to get correlation_id and client_id
+  protocol::ControlMessageHeader *header =
+      reinterpret_cast<protocol::ControlMessageHeader *>(buffer);
+
+  // For now, use a placeholder registration_id
+  // In a real implementation, we would read the actual registration_id from the
+  // message
+  std::int64_t registration_id = 0; // TODO: Read from message
+
+  handle_remove_subscription(registration_id, header->client_id);
+}
+
+void Conductor::handle_client_keepalive_message() {
+  // Read the client keepalive message from shared memory
+  if (!control_request_buffer_) {
+    return;
+  }
+
+  std::uint8_t *buffer = control_request_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Read the message header to get client_id
+  protocol::ControlMessageHeader *header =
+      reinterpret_cast<protocol::ControlMessageHeader *>(buffer);
+
+  handle_client_keepalive(header->client_id);
+}
+
 void Conductor::send_response(const protocol::ResponseMessage &response) {
-  // Placeholder implementation - would write to control_response_buffer_
-  // In a real implementation, this would serialize the response and write it
-  // to the shared memory buffer for the client to read
+  if (!control_response_buffer_) {
+    return;
+  }
+
+  std::uint8_t *buffer = control_response_buffer_->memory();
+  if (!buffer) {
+    return;
+  }
+
+  // Write response to shared memory buffer
+  // This is a simplified implementation - in the real Aeron, this would use
+  // proper buffer management with read/write cursors
+
+  std::memcpy(buffer, &response, response.length);
 }
 
 std::int32_t Conductor::generate_session_id() {

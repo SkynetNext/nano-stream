@@ -171,6 +171,23 @@ private:
    */
   void handle_driver_response(const protocol::ResponseMessage &response);
 
+  /**
+   * Handle publication ready response.
+   */
+  void
+  handle_publication_ready_response(const protocol::ResponseMessage &response);
+
+  /**
+   * Handle subscription ready response.
+   */
+  void
+  handle_subscription_ready_response(const protocol::ResponseMessage &response);
+
+  /**
+   * Handle error response.
+   */
+  void handle_error_response(const protocol::ResponseMessage &response);
+
   AeronContext context_;
   std::int64_t client_id_;
   std::atomic<bool> connected_{false};
