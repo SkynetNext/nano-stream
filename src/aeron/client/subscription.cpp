@@ -3,7 +3,9 @@
 #endif
 
 #include "aeron/client/subscription.h"
+#include "aeron/logbuffer/frame_descriptor.h"
 #include <algorithm>
+#include <cstring>
 #include <mutex>
 
 namespace aeron {
@@ -33,23 +35,48 @@ int Image::poll(fragment_handler_t handler, int fragment_limit) {
   int fragments_read = 0;
   std::int64_t current_position = position_.load();
 
-  // In a real implementation, this would:
-  // 1. Read from the log buffer starting at current_position
-  // 2. Parse message headers and extract fragments
-  // 3. Call the handler for each fragment
-  // 4. Update the position
+  // Read from the log buffer starting at current_position
+  std::uint8_t *termBuffer =
+      log_buffer_->memory() + (current_position % term_length_);
+  std::int32_t termOffset =
+      static_cast<std::int32_t>(current_position & (term_length_ - 1));
 
-  // For now, simulate reading some data
-  for (int i = 0; i < fragment_limit && fragments_read < 5; ++i) {
-    // Simulate a message
-    std::string dummy_message =
-        "Dummy message " + std::to_string(current_position);
+  for (int i = 0; i < fragment_limit; ++i) {
+    // Check if we have enough data for a frame header
+    if (termOffset + logbuffer::FrameDescriptor::HEADER_LENGTH > term_length_) {
+      break;
+    }
 
-    handler(reinterpret_cast<const std::uint8_t *>(dummy_message.c_str()), 0,
-            dummy_message.length(), nullptr);
+    // Read frame header
+    std::int32_t frameLength =
+        logbuffer::FrameDescriptor::frameLength(termBuffer, termOffset);
+    if (frameLength <= 0 || frameLength > term_length_ - termOffset) {
+      break;
+    }
 
-    current_position += dummy_message.length();
-    fragments_read++;
+    std::uint8_t frameType =
+        logbuffer::FrameDescriptor::frameType(termBuffer, termOffset);
+    if (frameType == logbuffer::FrameDescriptor::HDR_TYPE_DATA) {
+      // Extract data
+      const std::uint8_t *data =
+          termBuffer + termOffset + logbuffer::FrameDescriptor::HEADER_LENGTH;
+      std::int32_t dataLength =
+          frameLength - logbuffer::FrameDescriptor::HEADER_LENGTH;
+
+      handler(data, 0, dataLength, nullptr);
+      fragments_read++;
+    }
+
+    // Move to next frame
+    current_position += frameLength;
+    termOffset += frameLength;
+
+    // Check if we need to wrap to the next term
+    if (termOffset >= term_length_) {
+      termOffset = 0;
+      termBuffer = log_buffer_->memory() +
+                   ((current_position / term_length_) % 3) * term_length_;
+    }
   }
 
   position_.store(current_position);

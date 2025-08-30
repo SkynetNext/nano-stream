@@ -36,6 +36,9 @@ add_library(nano-stream
     # Aeron utility implementations
     src/aeron/util/memory_mapped_file.cpp
     src/aeron/util/path_utils.cpp
+    src/aeron/logbuffer/log_buffer_descriptor.cpp
+    src/aeron/logbuffer/log_buffers.cpp
+    src/aeron/logbuffer/frame_descriptor.cpp
     
     # Aeron driver implementations
     src/aeron/driver/conductor/conductor.cpp

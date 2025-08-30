@@ -1,5 +1,6 @@
 #include "aeron/client/publication.h"
-#include <algorithm>
+#include "aeron/logbuffer/frame_descriptor.h"
+#include <cstring>
 
 namespace aeron {
 namespace client {
@@ -46,13 +47,43 @@ PublicationResult Publication::offer(const std::uint8_t *buffer,
     return PublicationResult::BACK_PRESSURED;
   }
 
-  // In a real implementation, this would:
-  // 1. Write the data to the log buffer at the current position
-  // 2. Update the position atomically
-  // 3. Signal the media driver that new data is available
+  // Write the data to the log buffer at the current position
+  std::uint8_t *termBuffer =
+      log_buffer_->memory() + (current_position % term_length_);
+  std::int32_t termOffset =
+      static_cast<std::int32_t>(current_position & (term_length_ - 1));
 
-  // For now, just simulate successful publication
-  position_.fetch_add(static_cast<std::int64_t>(length));
+  // Check if we need to wrap to the next term
+  if (termOffset + static_cast<std::int32_t>(length) > term_length_) {
+    return PublicationResult::BACK_PRESSURED;
+  }
+
+  // Write frame header
+  logbuffer::FrameDescriptor::frameLength(
+      termBuffer, termOffset,
+      static_cast<std::int32_t>(length +
+                                logbuffer::FrameDescriptor::HEADER_LENGTH));
+  logbuffer::FrameDescriptor::frameVersion(termBuffer, termOffset, 1);
+  logbuffer::FrameDescriptor::frameFlags(
+      termBuffer, termOffset, logbuffer::FrameDescriptor::UNFRAGMENTED);
+  logbuffer::FrameDescriptor::frameType(
+      termBuffer, termOffset, logbuffer::FrameDescriptor::HDR_TYPE_DATA);
+  logbuffer::FrameDescriptor::termOffset(termBuffer, termOffset, termOffset);
+  logbuffer::FrameDescriptor::sessionId(termBuffer, termOffset, session_id_);
+  logbuffer::FrameDescriptor::streamId(termBuffer, termOffset, stream_id_);
+  logbuffer::FrameDescriptor::termId(
+      termBuffer, termOffset,
+      static_cast<std::int32_t>(current_position / term_length_));
+  logbuffer::FrameDescriptor::reservedValue(termBuffer, termOffset, 0);
+
+  // Write data
+  std::memcpy(termBuffer + termOffset +
+                  logbuffer::FrameDescriptor::HEADER_LENGTH,
+              buffer + offset, length);
+
+  // Update position atomically
+  position_.fetch_add(static_cast<std::int64_t>(
+      length + logbuffer::FrameDescriptor::HEADER_LENGTH));
 
   return PublicationResult::SUCCESS;
 }
