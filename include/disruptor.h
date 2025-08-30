@@ -1,15 +1,15 @@
 #pragma once
 
 /**
- * Nano-Stream: High-Performance Lock-Free Communication Library
+ * Disruptor: High-Performance Lock-Free Ring Buffer Library
  *
- * A C++ library combining LMAX Disruptor and Aeron patterns for
- * high-performance, low-latency inter-process and inter-thread communication.
+ * A C++ implementation of the LMAX Disruptor pattern for
+ * high-performance, low-latency inter-thread communication.
  *
- * This is the main header file that includes all Nano-Stream functionality.
+ * This is the main header file that includes all Disruptor functionality.
  * Simply include this file to use the library.
  *
- * @author  Nano-Stream Team
+ * @author  Disruptor Team
  * @version 1.0.0
  * @date    2025
  *
@@ -60,7 +60,7 @@ namespace disruptor {
  * @brief Core lock-free data structures
  *
  * The core components provide the fundamental building blocks for
- * high-performance, low-latency communication:
+ * high-performance, low-latency inter-thread communication:
  *
  * - @ref Sequence: Atomic sequence numbers with cache-line alignment
  * - @ref RingBuffer: Lock-free ring buffer with pre-allocated entries
@@ -70,7 +70,7 @@ namespace disruptor {
  * @defgroup performance Performance Features
  * @brief Performance optimization features
  *
- * Nano-Stream is designed for maximum performance:
+ * Disruptor is designed for maximum performance:
  *
  * - **Lock-free**: All operations are wait-free or lock-free
  * - **Cache-optimized**: Memory layout minimizes cache misses
@@ -82,12 +82,15 @@ namespace disruptor {
  * @defgroup patterns Usage Patterns
  * @brief Common usage patterns and best practices
  *
- * Common patterns for using Nano-Stream:
+ * Common patterns for using Disruptor:
  *
- * - Single Producer, Single Consumer (SPSC)
- * - Single Producer, Multiple Consumer (SPMC)
+ * - Single Producer, Single Consumer (SPSC) - UniCast
+ * - Multiple Producer, Single Consumer (MPSC) - Sequence
  * - Batch processing for higher throughput
  * - Event sourcing and CQRS patterns
+ *
+ * Note: SPMC (Single Producer, Multiple Consumer) support requires
+ * additional components like SequenceBarrier and consumer dependency graphs.
  */
 
 } // namespace disruptor
