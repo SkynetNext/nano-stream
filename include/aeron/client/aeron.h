@@ -6,7 +6,12 @@
 #include "publication.h"
 #include "subscription.h"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>

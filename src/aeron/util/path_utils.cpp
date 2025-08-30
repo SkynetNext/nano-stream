@@ -14,8 +14,6 @@
 
 #endif
 
-#include <iostream>
-
 namespace aeron {
 namespace util {
 

@@ -164,7 +164,7 @@ int main() {
         while (subscribers_running.load()) {
           int fragments_read = subscription->poll(
               [&](const std::uint8_t *buffer, std::size_t offset,
-                  std::size_t length, const void *header) {
+                  std::size_t length, const void * /*header*/) {
                 if (length >= sizeof(TestMessage)) {
                   const TestMessage *msg =
                       reinterpret_cast<const TestMessage *>(buffer + offset);

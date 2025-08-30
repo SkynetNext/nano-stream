@@ -1,6 +1,10 @@
 #pragma once
 
 // Prevent winsock.h inclusion on Windows to avoid conflicts with winsock2.h
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -39,14 +43,14 @@
  */
 
 // Core nano-stream foundation
-#include "nano_stream/nano_stream.h"
+#include "nano_stream/nano_stream.h" // IWYU pragma: export
 
 // Aeron driver components
-#include "aeron/driver/conductor/conductor.h"
+#include "aeron/driver/conductor/conductor.h" // IWYU pragma: export
 #include "aeron/driver/media_driver.h"
-#include "aeron/driver/receiver/receiver.h"
-#include "aeron/driver/sender/sender.h"
-#include "aeron/driver/status/counters_manager.h"
+#include "aeron/driver/receiver/receiver.h"       // IWYU pragma: export
+#include "aeron/driver/sender/sender.h"           // IWYU pragma: export
+#include "aeron/driver/status/counters_manager.h" // IWYU pragma: export
 
 // Aeron client API
 #include "aeron/client/aeron.h"
@@ -54,12 +58,12 @@
 #include "aeron/client/subscription.h"
 
 // Protocol definitions
-#include "aeron/protocol/control_protocol.h"
-#include "aeron/protocol/header.h"
+#include "aeron/protocol/control_protocol.h" // IWYU pragma: export
+#include "aeron/protocol/header.h"           // IWYU pragma: export
 
 // Utilities
-#include "aeron/util/memory_mapped_file.h"
-#include "aeron/util/path_utils.h"
+#include "aeron/util/memory_mapped_file.h" // IWYU pragma: export
+#include "aeron/util/path_utils.h"         // IWYU pragma: export
 
 namespace aeron {
 
