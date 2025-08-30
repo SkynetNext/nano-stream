@@ -1,10 +1,10 @@
 #pragma once
 
 /**
- * Nano-Stream: High-Performance Lock-Free Communication Library
+ * Disruptor: High-Performance Lock-Free Communication Library
  *
- * A C++ library inspired by LMAX Disruptor and Aeron for high-performance,
- * low-latency inter-process and inter-thread communication.
+ * A C++ implementation inspired by LMAX Disruptor for high-performance,
+ * low-latency inter-thread communication.
  */
 
 // Main library headers - exported for convenience API
@@ -16,7 +16,7 @@
 
 #include <string>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Library version information
@@ -32,4 +32,4 @@ struct Version {
   }
 };
 
-} // namespace nano_stream
+} // namespace disruptor

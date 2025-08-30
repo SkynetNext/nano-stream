@@ -58,9 +58,10 @@ MediaDriver::MediaDriver(const MediaDriverContext &context)
   init_driver_directory();
   setup_signal_handlers();
 
-  // Create shared memory buffers for counters
+  // Create shared memory buffers for counters and control
   const std::size_t counters_metadata_size = 1024 * 1024; // 1MB
   const std::size_t counters_values_size = 1024 * 1024;   // 1MB
+  const std::size_t control_buffer_size = 1024 * 1024;    // 1MB
 
   try {
     auto counters_metadata_file = std::make_unique<util::MemoryMappedFile>(
@@ -69,6 +70,20 @@ MediaDriver::MediaDriver(const MediaDriverContext &context)
     auto counters_values_file = std::make_unique<util::MemoryMappedFile>(
         util::PathUtils::join_path(context_.aeron_dir, "counters-values"),
         counters_values_size, true);
+
+    // Create control communication buffers
+    std::string to_driver_path =
+        util::PathUtils::join_path(context_.aeron_dir, "to-driver");
+    std::string to_client_path =
+        util::PathUtils::join_path(context_.aeron_dir, "to-client");
+
+    std::cout << "Creating to-driver buffer: " << to_driver_path << std::endl;
+    std::cout << "Creating to-client buffer: " << to_client_path << std::endl;
+
+    to_driver_buffer_ = std::make_unique<util::MemoryMappedFile>(
+        to_driver_path, control_buffer_size, true);
+    to_client_buffer_ = std::make_unique<util::MemoryMappedFile>(
+        to_client_path, control_buffer_size, true);
 
     // Create counters manager
     counters_manager_ = std::make_unique<CountersManager>(
@@ -80,6 +95,10 @@ MediaDriver::MediaDriver(const MediaDriverContext &context)
     conductor_ = std::make_unique<Conductor>();
     sender_ = std::make_unique<Sender>();
     receiver_ = std::make_unique<Receiver>();
+
+    // Set control buffers for conductor
+    conductor_->set_control_buffers(std::move(to_driver_buffer_),
+                                    std::move(to_client_buffer_));
 
     // Set log buffer manager for sender and receiver
     sender_->set_log_buffer_manager(log_buffer_manager_);

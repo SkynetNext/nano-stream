@@ -25,13 +25,17 @@ MemoryMappedFile::MemoryMappedFile(const std::string &filename,
 #ifdef _WIN32
   DWORD creation_disposition = create_new ? CREATE_ALWAYS : OPEN_EXISTING;
   DWORD access = GENERIC_READ | GENERIC_WRITE;
+  DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
 
-  file_handle_ = CreateFileA(
-      filename.c_str(), access, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-      creation_disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
+  file_handle_ =
+      CreateFileA(filename.c_str(), access, share_mode, nullptr,
+                  creation_disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
 
   if (file_handle_ == INVALID_HANDLE_VALUE) {
-    throw std::runtime_error("Failed to create/open file: " + filename);
+    DWORD error = GetLastError();
+    std::string error_msg = "Failed to create/open file: " + filename +
+                            " (Error: " + std::to_string(error) + ")";
+    throw std::runtime_error(error_msg);
   }
 
   if (create_new) {

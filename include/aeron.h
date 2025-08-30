@@ -43,7 +43,7 @@
  */
 
 // Core nano-stream foundation
-#include "nano_stream/nano_stream.h" // IWYU pragma: export
+#include "disruptor/disruptor.h" // IWYU pragma: export
 
 // Aeron driver components
 #include "aeron/driver/conductor/conductor.h" // IWYU pragma: export

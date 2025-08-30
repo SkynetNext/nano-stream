@@ -29,12 +29,17 @@ Aeron::Aeron(const AeronContext &context) : context_(context) {
   }
 
   last_keepalive_time_ = std::chrono::steady_clock::now();
+
+  // Initialize connection to Media Driver
+  init_connection();
 }
 
 Aeron::~Aeron() { close(); }
 
 void Aeron::init_connection() {
   try {
+    std::cout << "Connecting to Media Driver..." << std::endl;
+
     // Create communication buffers with media driver
     to_driver_buffer_ = std::make_unique<util::MemoryMappedFile>(
         util::PathUtils::join_path(context_.aeron_dir, "to-driver"),

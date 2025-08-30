@@ -160,6 +160,10 @@ private:
   std::unique_ptr<Receiver> receiver_;
   std::shared_ptr<LogBufferManager> log_buffer_manager_;
 
+  // Control communication buffers
+  std::unique_ptr<util::MemoryMappedFile> to_driver_buffer_;
+  std::unique_ptr<util::MemoryMappedFile> to_client_buffer_;
+
   // Shutdown coordination
   std::atomic<bool> shutdown_requested_{false};
 };

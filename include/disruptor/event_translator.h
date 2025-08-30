@@ -4,7 +4,7 @@
 #include <functional>
 #include <utility>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Event translator interface for updating events in the ring buffer.
@@ -156,4 +156,4 @@ public:
   }
 };
 
-} // namespace nano_stream
+} // namespace disruptor

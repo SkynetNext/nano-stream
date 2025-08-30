@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Event handler interface for processing events in the ring buffer.
@@ -64,4 +64,4 @@ public:
   }
 };
 
-} // namespace nano_stream
+} // namespace disruptor

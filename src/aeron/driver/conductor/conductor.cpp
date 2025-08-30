@@ -7,33 +7,18 @@ namespace aeron {
 namespace driver {
 
 Conductor::Conductor() {
-  // Initialize control buffers
-  try {
-    std::string aeron_dir = util::PathUtils::get_default_aeron_dir();
-
-    // Create directory if it doesn't exist
-    if (!util::PathUtils::directory_exists(aeron_dir)) {
-      if (!util::PathUtils::create_directory(aeron_dir)) {
-        std::cerr << "Failed to create Aeron directory: " << aeron_dir
-                  << std::endl;
-        throw std::runtime_error("Failed to create Aeron directory");
-      }
-    }
-
-    control_request_buffer_ = std::make_unique<util::MemoryMappedFile>(
-        util::PathUtils::join_path(aeron_dir, "to-driver"), CONTROL_BUFFER_SIZE,
-        true);
-    control_response_buffer_ = std::make_unique<util::MemoryMappedFile>(
-        util::PathUtils::join_path(aeron_dir, "to-client"), CONTROL_BUFFER_SIZE,
-        true);
-  } catch (const std::exception &e) {
-    std::cerr << "Failed to initialize conductor control buffers: " << e.what()
-              << std::endl;
-    throw;
-  }
+  // Control buffers will be initialized by Media Driver
+  // and passed to Conductor later
 }
 
 Conductor::~Conductor() { stop(); }
+
+void Conductor::set_control_buffers(
+    std::unique_ptr<util::MemoryMappedFile> request_buffer,
+    std::unique_ptr<util::MemoryMappedFile> response_buffer) {
+  control_request_buffer_ = std::move(request_buffer);
+  control_response_buffer_ = std::move(response_buffer);
+}
 
 void Conductor::start() {
   if (running_.load()) {

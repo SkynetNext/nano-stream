@@ -1,4 +1,4 @@
-#include "nano_stream.h"
+#include "disruptor.h"
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -7,7 +7,7 @@
 #include <iostream>
 #include <thread>
 
-using namespace nano_stream;
+using namespace disruptor;
 
 // Example event structure
 struct TradeEvent {

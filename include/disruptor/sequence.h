@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <new>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Cache-line aligned atomic sequence number for high-performance lock-free
@@ -130,4 +130,4 @@ public:
 static_assert(sizeof(Sequence) >= std::hardware_destructive_interference_size,
               "Sequence must be at least one cache line size");
 
-} // namespace nano_stream
+} // namespace disruptor

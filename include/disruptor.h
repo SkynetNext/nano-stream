@@ -3,8 +3,8 @@
 /**
  * Nano-Stream: High-Performance Lock-Free Communication Library
  *
- * A C++ library inspired by LMAX Disruptor and Aeron for high-performance,
- * low-latency inter-process and inter-thread communication.
+ * A C++ library combining LMAX Disruptor and Aeron patterns for
+ * high-performance, low-latency inter-process and inter-thread communication.
  *
  * This is the main header file that includes all Nano-Stream functionality.
  * Simply include this file to use the library.
@@ -15,9 +15,9 @@
  *
  * Example usage:
  * @code
- * #include "nano_stream.h"
+ * #include "disruptor.h"
  *
- * using namespace nano_stream;
+ * using namespace disruptor;
  *
  * // Create a ring buffer for your events
  * struct Event { int data; };
@@ -38,21 +38,21 @@
  */
 
 // Core components
-#include "nano_stream/ring_buffer.h" // IWYU pragma: export
-#include "nano_stream/sequence.h"    // IWYU pragma: export
+#include "disruptor/ring_buffer.h" // IWYU pragma: export
+#include "disruptor/sequence.h"    // IWYU pragma: export
 
 // Main namespace and version info
-#include "nano_stream/nano_stream.h" // IWYU pragma: export
+#include "disruptor/disruptor.h" // IWYU pragma: export
 
 /**
- * @brief Nano-Stream namespace containing all library functionality
+ * @brief Disruptor namespace containing all library functionality
  *
  * This namespace contains:
  * - Sequence: Cache-line aligned atomic sequence numbers
  * - RingBuffer: Lock-free ring buffer for high-performance communication
  * - Version: Library version information
  */
-namespace nano_stream {
+namespace disruptor {
 
 // Library documentation and feature overview
 /**
@@ -90,4 +90,4 @@ namespace nano_stream {
  * - Event sourcing and CQRS patterns
  */
 
-} // namespace nano_stream
+} // namespace disruptor

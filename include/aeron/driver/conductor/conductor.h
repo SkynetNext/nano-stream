@@ -47,6 +47,13 @@ public:
   bool is_running() const { return running_.load(); }
 
   /**
+   * Set control buffers (called by Media Driver).
+   */
+  void
+  set_control_buffers(std::unique_ptr<util::MemoryMappedFile> request_buffer,
+                      std::unique_ptr<util::MemoryMappedFile> response_buffer);
+
+  /**
    * Main conductor loop (runs in separate thread).
    */
   void run();

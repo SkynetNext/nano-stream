@@ -19,7 +19,7 @@
 #include <memory>
 #include <thread>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Error codes for consumer operations
@@ -296,4 +296,4 @@ public:
   ~Consumer() { stop(); }
 };
 
-} // namespace nano_stream
+} // namespace disruptor

@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Defines producer types to support creation of RingBuffer with correct
@@ -750,4 +750,4 @@ private:
   }
 };
 
-} // namespace nano_stream
+} // namespace disruptor

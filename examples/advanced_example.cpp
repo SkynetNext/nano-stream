@@ -1,16 +1,16 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <disruptor/disruptor.h>
 #include <exception>
 #include <iostream>
 #include <memory>
-#include <nano_stream/nano_stream.h>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
 
-using namespace nano_stream;
+using namespace disruptor;
 
 // 定义事件类型
 struct TradeEvent {
@@ -80,7 +80,7 @@ public:
 
 int main() {
   std::cout << "Nano-Stream Advanced Example" << std::endl;
-  std::cout << "Version: " << nano_stream::Version::get_version_string()
+  std::cout << "Version: " << disruptor::Version::get_version_string()
             << std::endl;
 
   // 创建环形缓冲区

@@ -7,7 +7,7 @@
 #include <mutex>
 #include <thread>
 
-namespace nano_stream {
+namespace disruptor {
 
 /**
  * Strategy employed for making consumers wait on a cursor sequence.
@@ -179,4 +179,4 @@ public:
   void signal_all_when_blocking() override { condition_variable_.notify_all(); }
 };
 
-} // namespace nano_stream
+} // namespace disruptor
