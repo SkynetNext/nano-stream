@@ -41,6 +41,11 @@
 #include "disruptor/ring_buffer.h" // IWYU pragma: export
 #include "disruptor/sequence.h"    // IWYU pragma: export
 
+// SPMC support components
+#include "disruptor/batch_event_processor.h" // IWYU pragma: export
+#include "disruptor/disruptor_dsl.h"         // IWYU pragma: export
+#include "disruptor/sequence_barrier.h"      // IWYU pragma: export
+
 // Main namespace and version info
 #include "disruptor/disruptor.h" // IWYU pragma: export
 
@@ -85,12 +90,10 @@ namespace disruptor {
  * Common patterns for using Disruptor:
  *
  * - Single Producer, Single Consumer (SPSC) - UniCast
+ * - Single Producer, Multiple Consumer (SPMC) - Pipeline/Multicast
  * - Multiple Producer, Single Consumer (MPSC) - Sequence
  * - Batch processing for higher throughput
  * - Event sourcing and CQRS patterns
- *
- * Note: SPMC (Single Producer, Multiple Consumer) support requires
- * additional components like SequenceBarrier and consumer dependency graphs.
  */
 
 } // namespace disruptor

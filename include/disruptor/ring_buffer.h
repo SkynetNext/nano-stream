@@ -2,6 +2,7 @@
 
 #include "event_translator.h"
 #include "sequence.h"
+#include "sequence_barrier.h"
 #include "wait_strategy.h"
 #include <atomic>
 #include <bit>
@@ -748,6 +749,42 @@ private:
     }
     publish(initial_sequence, final_sequence);
   }
+
+public:
+  /**
+   * Create a new sequence barrier for consumers.
+   *
+   * @param dependent_sequences Optional dependent sequences to wait on
+   * @return A new sequence barrier
+   */
+  std::unique_ptr<SequenceBarrier>
+  new_barrier(const std::vector<std::reference_wrapper<const Sequence>>
+                  &dependent_sequences = {}) {
+    // Create a copy of the wait strategy (we need a concrete implementation)
+    std::unique_ptr<WaitStrategy> wait_strategy_copy;
+    if (dynamic_cast<BusySpinWaitStrategy *>(wait_strategy_.get())) {
+      wait_strategy_copy = std::make_unique<BusySpinWaitStrategy>();
+    } else if (dynamic_cast<YieldingWaitStrategy *>(wait_strategy_.get())) {
+      wait_strategy_copy = std::make_unique<YieldingWaitStrategy>();
+    } else if (dynamic_cast<SleepingWaitStrategy *>(wait_strategy_.get())) {
+      wait_strategy_copy = std::make_unique<SleepingWaitStrategy>();
+    } else {
+      // Default to busy spin
+      wait_strategy_copy = std::make_unique<BusySpinWaitStrategy>();
+    }
+
+    return std::make_unique<ProcessingSequenceBarrier>(
+        std::move(wait_strategy_copy), cursor_, cursor_, dependent_sequences);
+  }
+
+  /**
+   * Create a new sequence barrier for consumers (convenience method).
+   *
+   * @return A new sequence barrier
+   */
+  std::unique_ptr<SequenceBarrier> new_barrier() { return new_barrier({}); }
+
+private:
 };
 
 } // namespace disruptor
