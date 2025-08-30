@@ -76,9 +76,14 @@ MediaDriver::MediaDriver(const MediaDriverContext &context)
         counters_metadata_size, counters_values_size);
 
     // Create driver components
+    log_buffer_manager_ = std::make_shared<LogBufferManager>();
     conductor_ = std::make_unique<Conductor>();
     sender_ = std::make_unique<Sender>();
     receiver_ = std::make_unique<Receiver>();
+
+    // Set log buffer manager for sender and receiver
+    sender_->set_log_buffer_manager(log_buffer_manager_);
+    receiver_->set_log_buffer_manager(log_buffer_manager_);
 
     std::cout << "MediaDriver initialized with directory: "
               << context_.aeron_dir << std::endl;

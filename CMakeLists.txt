@@ -39,6 +39,7 @@ add_library(nano-stream
     src/aeron/logbuffer/log_buffer_descriptor.cpp
     src/aeron/logbuffer/log_buffers.cpp
     src/aeron/logbuffer/frame_descriptor.cpp
+    src/aeron/driver/log_buffer_manager.cpp
     
     # Aeron driver implementations
     src/aeron/driver/conductor/conductor.cpp

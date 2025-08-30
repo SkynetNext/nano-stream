@@ -1,5 +1,7 @@
 #ifdef _WIN32
 #define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#define _WINSOCKAPI_
 #pragma comment(lib, "ws2_32.lib")
 #else
 #include <fcntl.h>
@@ -213,6 +215,11 @@ void Receiver::remove_subscription(std::int32_t stream_id,
   }
 }
 
+void Receiver::set_log_buffer_manager(
+    std::shared_ptr<LogBufferManager> manager) {
+  log_buffer_manager_ = manager;
+}
+
 void Receiver::process_subscriptions() {
   std::lock_guard<std::mutex> lock(endpoints_mutex_);
 
@@ -273,6 +280,10 @@ void Receiver::receive_subscription_data(ReceiveEndpoint &endpoint) {
 void Receiver::process_data_frame(const protocol::DataHeader &header,
                                   const std::uint8_t *data,
                                   std::int32_t length) {
+  // Check for gaps in the sequence before processing
+  check_for_gaps(header.session_id, header.stream_id, header.term_id,
+                 header.term_offset);
+
   // Add fragment to assembler
   bool is_complete = fragment_assembler_.add_fragment(header, data, length);
 
@@ -285,7 +296,41 @@ void Receiver::process_data_frame(const protocol::DataHeader &header,
                 << ", stream=" << fragment->stream_id
                 << ", length=" << fragment->data.size() << std::endl;
 
-      // In a real implementation, this would forward the message to subscribers
+      // Write complete message to subscription log buffer via LogBufferManager
+      if (log_buffer_manager_) {
+        auto subscription_info = log_buffer_manager_->get_subscription(
+            fragment->session_id, fragment->stream_id);
+
+        if (subscription_info) {
+          // Calculate position for writing (simplified - in real implementation
+          // this would be more sophisticated)
+          std::int64_t position = subscription_info->tail_position.load();
+
+          std::int32_t bytes_written =
+              log_buffer_manager_->write_subscription_data(
+                  fragment->session_id, fragment->stream_id,
+                  fragment->data.data(), fragment->data.size(), position);
+
+          if (bytes_written > 0) {
+            // Update tail position
+            subscription_info->tail_position.store(position + bytes_written);
+
+            std::cout
+                << "Successfully wrote message to subscription log buffer: "
+                << "session=" << fragment->session_id
+                << ", stream=" << fragment->stream_id
+                << ", length=" << bytes_written << std::endl;
+          } else {
+            std::cerr << "Failed to write message to subscription log buffer: "
+                      << "session=" << fragment->session_id
+                      << ", stream=" << fragment->stream_id << std::endl;
+          }
+        } else {
+          std::cout << "No subscription found for: session="
+                    << fragment->session_id
+                    << ", stream=" << fragment->stream_id << std::endl;
+        }
+      }
     }
   }
 
@@ -311,27 +356,81 @@ void Receiver::process_data_frame(const protocol::DataHeader &header,
   }
 }
 
-void Receiver::process_setup_frame(const protocol::SetupFrame &setup_frame) {
-  std::cout << "Received setup frame: session=" << setup_frame.header.session_id
-            << ", stream=" << setup_frame.header.stream_id << std::endl;
+void Receiver::process_setup_frame(const protocol::SetupHeader &setup_header) {
+  std::cout << "Received setup frame: session=" << setup_header.session_id
+            << ", stream=" << setup_header.stream_id
+            << ", term_length=" << setup_header.term_length
+            << ", mtu_length=" << setup_header.mtu_length << std::endl;
 
-  // In a real implementation, this would initialize the session state
+  // Initialize session state for this stream
+  std::lock_guard<std::mutex> lock(flow_control_mutex_);
+  std::int64_t key =
+      (static_cast<std::int64_t>(setup_header.session_id) << 32) |
+      static_cast<std::uint32_t>(setup_header.stream_id);
+
+  auto &state = flow_control_[key];
+  state.last_term_id = setup_header.active_term_id;
+  state.last_term_offset = setup_header.term_offset;
+  state.last_status_message_time = std::chrono::steady_clock::now();
+
+  // Send immediate status message to acknowledge setup
+  send_status_message(setup_header.session_id, setup_header.stream_id,
+                      setup_header.active_term_id, setup_header.term_offset);
 }
 
 void Receiver::send_status_message(std::int32_t session_id,
                                    std::int32_t stream_id, std::int32_t term_id,
                                    std::int32_t term_offset) {
-  protocol::StatusMessageFrame status;
-  status.init(session_id, stream_id);
-  status.consumption_term_id = term_id;
-  status.consumption_term_offset = term_offset;
-  status.receiver_window_length = 128 * 1024; // 128KB window
+  protocol::StatusMessageHeader status_header;
+  status_header.init();
+  status_header.session_id = session_id;
+  status_header.stream_id = stream_id;
+  status_header.consumption_term_id = term_id;
+  status_header.consumption_term_offset = term_offset;
+  status_header.receiver_window_length = 128 * 1024; // 128KB window
+  status_header.set_frame_length(sizeof(status_header));
 
-  // In a real implementation, this would send the status message back to the
-  // sender For now, just log it
-  std::cout << "Sending status message: session=" << session_id
-            << ", stream=" << stream_id << ", term_offset=" << term_offset
-            << std::endl;
+  // Find the corresponding endpoint to send the status message
+  std::lock_guard<std::mutex> lock(endpoints_mutex_);
+  auto it = endpoints_.find(stream_id);
+  if (it != endpoints_.end()) {
+    auto &endpoint = it->second;
+
+    // Create a simple destination address for the sender
+    struct sockaddr_in dest_addr;
+    std::memset(&dest_addr, 0, sizeof(dest_addr));
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_port = htons(40456);                  // Default Aeron port
+    dest_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // localhost
+
+#ifdef _WIN32
+    int result = sendto(
+        endpoint->socket_fd, reinterpret_cast<const char *>(&status_header),
+        sizeof(status_header), 0,
+        reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr));
+#else
+    ssize_t result = sendto(
+        endpoint->socket_fd, &status_header, sizeof(status_header), 0,
+        reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr));
+#endif
+
+    if (result < 0) {
+#ifdef _WIN32
+      std::cerr << "Failed to send status message: " << WSAGetLastError()
+                << std::endl;
+#else
+      std::cerr << "Failed to send status message: " << strerror(errno)
+                << std::endl;
+#endif
+    } else {
+      std::cout << "Sent status message: session=" << session_id
+                << ", stream=" << stream_id << ", term_offset=" << term_offset
+                << std::endl;
+    }
+  } else {
+    std::cout << "No endpoint found for stream " << stream_id
+              << ", cannot send status message" << std::endl;
+  }
 }
 
 bool Receiver::create_socket(ReceiveEndpoint &endpoint) {
@@ -425,11 +524,76 @@ bool Receiver::parse_channel_uri(const std::string &channel,
 
 void Receiver::check_for_gaps(std::int32_t session_id, std::int32_t stream_id,
                               std::int32_t term_id, std::int32_t term_offset) {
-  // Placeholder implementation for gap detection
-  // In a real implementation, this would:
-  // 1. Track expected sequence numbers
-  // 2. Detect missing packets
-  // 3. Send NAK (Negative Acknowledgment) messages for retransmission
+  // Track expected sequence numbers and detect missing packets
+  std::lock_guard<std::mutex> lock(flow_control_mutex_);
+  std::int64_t key = (static_cast<std::int64_t>(session_id) << 32) |
+                     static_cast<std::uint32_t>(stream_id);
+
+  auto it = flow_control_.find(key);
+  if (it == flow_control_.end()) {
+    return; // No flow control state for this session/stream
+  }
+
+  auto &state = it->second;
+
+  // Check if we have a gap in the sequence
+  if (term_id > state.last_term_id ||
+      (term_id == state.last_term_id &&
+       term_offset > state.last_term_offset + 1)) {
+
+    // Send NAK (Negative Acknowledgment) for missing data
+    protocol::NakHeader nak_header;
+    nak_header.init();
+    nak_header.session_id = session_id;
+    nak_header.stream_id = stream_id;
+    nak_header.term_id = state.last_term_id;
+    nak_header.term_offset = state.last_term_offset + 1;
+    nak_header.length = term_offset - state.last_term_offset - 1;
+    nak_header.set_frame_length(sizeof(nak_header));
+
+    // Find endpoint to send NAK
+    std::lock_guard<std::mutex> endpoint_lock(endpoints_mutex_);
+    auto endpoint_it = endpoints_.find(stream_id);
+    if (endpoint_it != endpoints_.end()) {
+      auto &endpoint = endpoint_it->second;
+
+      // Create destination address for NAK
+      struct sockaddr_in dest_addr;
+      std::memset(&dest_addr, 0, sizeof(dest_addr));
+      dest_addr.sin_family = AF_INET;
+      dest_addr.sin_port = htons(40456);                  // Default Aeron port
+      dest_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // localhost
+
+#ifdef _WIN32
+      int result = sendto(
+          endpoint->socket_fd, reinterpret_cast<const char *>(&nak_header),
+          sizeof(nak_header), 0, reinterpret_cast<const sockaddr *>(&dest_addr),
+          sizeof(dest_addr));
+#else
+      ssize_t result = sendto(
+          endpoint->socket_fd, &nak_header, sizeof(nak_header), 0,
+          reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr));
+#endif
+
+      if (result < 0) {
+#ifdef _WIN32
+        std::cerr << "Failed to send NAK: " << WSAGetLastError() << std::endl;
+#else
+        std::cerr << "Failed to send NAK: " << strerror(errno) << std::endl;
+#endif
+      } else {
+        std::cout << "Sent NAK for gap: session=" << session_id
+                  << ", stream=" << stream_id
+                  << ", term_id=" << state.last_term_id
+                  << ", term_offset=" << (state.last_term_offset + 1)
+                  << ", length=" << nak_header.length << std::endl;
+      }
+    }
+  }
+
+  // Update state
+  state.last_term_id = term_id;
+  state.last_term_offset = term_offset;
 }
 
 } // namespace driver

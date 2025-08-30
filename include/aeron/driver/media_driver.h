@@ -2,6 +2,7 @@
 
 #include "../util/path_utils.h"
 #include "conductor/conductor.h"
+#include "log_buffer_manager.h"
 #include "receiver/receiver.h"
 #include "sender/sender.h"
 #include "status/counters_manager.h"
@@ -157,6 +158,7 @@ private:
   std::unique_ptr<Conductor> conductor_;
   std::unique_ptr<Sender> sender_;
   std::unique_ptr<Receiver> receiver_;
+  std::shared_ptr<LogBufferManager> log_buffer_manager_;
 
   // Shutdown coordination
   std::atomic<bool> shutdown_requested_{false};

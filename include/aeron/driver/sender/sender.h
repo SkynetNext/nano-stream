@@ -1,5 +1,6 @@
 #pragma once
 
+#include "aeron/driver/log_buffer_manager.h"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -107,6 +108,11 @@ public:
    */
   void remove_publication(std::int32_t session_id, std::int32_t stream_id);
 
+  /**
+   * Set the log buffer manager.
+   */
+  void set_log_buffer_manager(std::shared_ptr<LogBufferManager> manager);
+
 private:
   /**
    * Process outbound data from all publications.
@@ -116,7 +122,9 @@ private:
   /**
    * Send data for a specific publication.
    */
-  void send_publication_data(SendEndpoint &endpoint);
+  void send_publication_data(
+      SendEndpoint &endpoint,
+      std::shared_ptr<LogBufferManager::PublicationInfo> publication);
 
   /**
    * Send a single data frame.
@@ -171,6 +179,9 @@ private:
 
   std::vector<RetransmitRequest> retransmit_requests_;
   std::mutex retransmit_mutex_;
+
+  // Log buffer manager
+  std::shared_ptr<LogBufferManager> log_buffer_manager_;
 
   // Configuration
   static constexpr std::int32_t SENDER_TICK_DURATION_MS = 1;

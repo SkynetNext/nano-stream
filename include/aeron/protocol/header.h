@@ -7,109 +7,125 @@ namespace aeron {
 namespace protocol {
 
 /**
- * Aeron message header format.
- * Compatible with Java Aeron protocol.
+ * Base header for all Aeron protocol messages.
  */
-struct alignas(32) DataHeader {
+struct Header {
+  std::int32_t frame_length;
+  std::uint8_t version;
+  std::uint8_t flags;
+  std::uint8_t type;
+  std::uint8_t reserved;
+  std::int32_t term_offset;
+  std::int32_t session_id;
+  std::int32_t stream_id;
+  std::int32_t term_id;
+  std::int64_t reserved_value;
+
   static constexpr std::int32_t HEADER_LENGTH = 32;
-  static constexpr std::int32_t DATA_OFFSET = HEADER_LENGTH;
+  static constexpr std::uint8_t CURRENT_VERSION = 1;
 
-  // Header fields
-  std::int32_t frame_length;   // Total frame length including header
-  std::int8_t version;         // Protocol version
-  std::int8_t flags;           // Frame flags
-  std::int16_t type;           // Frame type
-  std::int32_t term_offset;    // Offset within term
-  std::int32_t session_id;     // Session identifier
-  std::int32_t stream_id;      // Stream identifier
-  std::int32_t term_id;        // Term identifier
-  std::int64_t reserved_value; // Reserved for future use
-
-  /**
-   * Initialize header with default values.
-   */
   void init() {
-    std::memset(this, 0, sizeof(*this));
-    version = 1;
+    std::memset(this, 0, sizeof(Header));
+    version = CURRENT_VERSION;
   }
 
-  /**
-   * Set frame length including header.
-   */
   void set_frame_length(std::int32_t length) { frame_length = length; }
 
-  /**
-   * Get the data length (excluding header).
-   */
-  std::int32_t data_length() const { return frame_length - HEADER_LENGTH; }
+  std::int32_t get_frame_length() const { return frame_length; }
 
-  /**
-   * Check if this is the beginning of a message.
-   */
-  bool is_begin_fragment() const { return (flags & BEGIN_FRAGMENT_FLAG) != 0; }
+  void set_flags(std::uint8_t flags) { this->flags = flags; }
 
-  /**
-   * Check if this is the end of a message.
-   */
-  bool is_end_fragment() const { return (flags & END_FRAGMENT_FLAG) != 0; }
+  std::uint8_t get_flags() const { return flags; }
 
-  /**
-   * Mark as beginning fragment.
-   */
-  void set_begin_fragment() { flags |= BEGIN_FRAGMENT_FLAG; }
+  void set_type(std::uint8_t type) { this->type = type; }
 
-  /**
-   * Mark as end fragment.
-   */
-  void set_end_fragment() { flags |= END_FRAGMENT_FLAG; }
-
-private:
-  static constexpr std::int8_t BEGIN_FRAGMENT_FLAG = 0x80;
-  static constexpr std::int8_t END_FRAGMENT_FLAG = 0x40;
+  std::uint8_t get_type() const { return type; }
 };
 
 /**
- * Setup frame for initial connection.
+ * Data header for data messages.
  */
-struct SetupFrame {
-  DataHeader header;
-  std::int32_t term_length;
-  std::int32_t mtu_length;
+struct DataHeader : public Header {
+  static constexpr std::uint8_t HDR_TYPE_DATA = 0x01;
+  static constexpr std::uint8_t BEGIN_FRAG_FLAG = 0x80;
+  static constexpr std::uint8_t END_FRAG_FLAG = 0x40;
+  static constexpr std::uint8_t UNFRAGMENTED = BEGIN_FRAG_FLAG | END_FRAG_FLAG;
+
+  void init() {
+    Header::init();
+    type = HDR_TYPE_DATA;
+  }
+
+  void set_begin_fragment() { flags |= BEGIN_FRAG_FLAG; }
+
+  void set_end_fragment() { flags |= END_FRAG_FLAG; }
+
+  void set_unfragmented() { flags = UNFRAGMENTED; }
+
+  bool is_begin_fragment() const { return (flags & BEGIN_FRAG_FLAG) != 0; }
+
+  bool is_end_fragment() const { return (flags & END_FRAG_FLAG) != 0; }
+
+  bool is_fragmented() const { return flags != UNFRAGMENTED; }
+};
+
+/**
+ * Setup header for connection setup messages.
+ */
+struct SetupHeader : public Header {
+  static constexpr std::uint8_t HDR_TYPE_SETUP = 0x05;
+
   std::int32_t initial_term_id;
   std::int32_t active_term_id;
   std::int32_t term_offset;
+  std::int32_t term_length;
+  std::int32_t mtu_length;
+  std::int32_t ttl;
+  std::int32_t flow_control_timeout;
+  std::int32_t session_id;
+  std::int32_t stream_id;
 
-  void init(std::int32_t session_id, std::int32_t stream_id) {
-    header.init();
-    header.session_id = session_id;
-    header.stream_id = stream_id;
-    header.type = SETUP_FRAME_TYPE;
-    header.set_frame_length(sizeof(*this));
+  void init() {
+    Header::init();
+    type = HDR_TYPE_SETUP;
   }
-
-private:
-  static constexpr std::int16_t SETUP_FRAME_TYPE = 0x01;
 };
 
 /**
- * Status message frame.
+ * NAK header for negative acknowledgments.
  */
-struct StatusMessageFrame {
-  DataHeader header;
+struct NakHeader : public Header {
+  static constexpr std::uint8_t HDR_TYPE_NAK = 0x02;
+
+  std::int32_t session_id;
+  std::int32_t stream_id;
+  std::int32_t term_id;
+  std::int32_t term_offset;
+  std::int32_t length;
+
+  void init() {
+    Header::init();
+    type = HDR_TYPE_NAK;
+  }
+};
+
+/**
+ * Status Message header for flow control.
+ */
+struct StatusMessageHeader : public Header {
+  static constexpr std::uint8_t HDR_TYPE_SM = 0x03;
+
+  std::int32_t session_id;
+  std::int32_t stream_id;
   std::int32_t consumption_term_id;
   std::int32_t consumption_term_offset;
   std::int32_t receiver_window_length;
+  std::int32_t receiver_id;
 
-  void init(std::int32_t session_id, std::int32_t stream_id) {
-    header.init();
-    header.session_id = session_id;
-    header.stream_id = stream_id;
-    header.type = STATUS_MESSAGE_FRAME_TYPE;
-    header.set_frame_length(sizeof(*this));
+  void init() {
+    Header::init();
+    type = HDR_TYPE_SM;
   }
-
-private:
-  static constexpr std::int16_t STATUS_MESSAGE_FRAME_TYPE = 0x02;
 };
 
 } // namespace protocol

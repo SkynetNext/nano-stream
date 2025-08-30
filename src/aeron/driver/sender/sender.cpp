@@ -1,5 +1,7 @@
 #ifdef _WIN32
 #define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#define _WINSOCKAPI_
 #pragma comment(lib, "ws2_32.lib")
 #else
 #include <unistd.h>
@@ -139,24 +141,61 @@ void Sender::remove_publication(std::int32_t session_id,
   }
 }
 
-void Sender::process_publications() {
-  std::lock_guard<std::mutex> lock(endpoints_mutex_);
+void Sender::set_log_buffer_manager(std::shared_ptr<LogBufferManager> manager) {
+  log_buffer_manager_ = manager;
+}
 
-  for (auto &pair : endpoints_) {
-    auto &endpoint = pair.second;
-    send_publication_data(*endpoint);
+void Sender::process_publications() {
+  if (!log_buffer_manager_) {
+    return;
+  }
+
+  auto publications = log_buffer_manager_->get_all_publications();
+
+  for (const auto &publication : publications) {
+    // Find corresponding endpoint
+    std::int64_t key =
+        (static_cast<std::int64_t>(publication->session_id) << 32) |
+        static_cast<std::uint32_t>(publication->stream_id);
+
+    std::lock_guard<std::mutex> lock(endpoints_mutex_);
+    auto it = endpoints_.find(key);
+    if (it != endpoints_.end()) {
+      send_publication_data(*it->second, publication);
+    }
   }
 }
 
-void Sender::send_publication_data(SendEndpoint &endpoint) {
-  // Placeholder implementation
-  // In a real implementation, this would:
-  // 1. Read data from the publication's log buffer
-  // 2. Fragment large messages if needed
-  // 3. Send UDP packets with proper headers
-  // 4. Update flow control state
+void Sender::send_publication_data(
+    SendEndpoint &endpoint,
+    std::shared_ptr<LogBufferManager::PublicationInfo> publication) {
+  // Read data from the publication's log buffer
+  std::uint8_t buffer[MAX_UDP_PAYLOAD_LENGTH];
+  std::int64_t position;
 
-  // For now, just send a setup frame periodically
+  std::int32_t bytes_read = log_buffer_manager_->read_publication_data(
+      publication->session_id, publication->stream_id, buffer,
+      MAX_UDP_PAYLOAD_LENGTH, position);
+
+  if (bytes_read > 0) {
+    // Parse the frame header to get data length
+    if (bytes_read >= protocol::Header::HEADER_LENGTH) {
+      protocol::DataHeader *header =
+          reinterpret_cast<protocol::DataHeader *>(buffer);
+      std::int32_t data_length =
+          header->get_frame_length() - protocol::Header::HEADER_LENGTH;
+
+      if (data_length > 0) {
+        // Send the data frame
+        send_data_frame(endpoint, buffer, bytes_read);
+
+        // Update endpoint position
+        endpoint.position = position + bytes_read;
+      }
+    }
+  }
+
+  // Send setup frame periodically for new connections
   static auto last_setup_time = std::chrono::steady_clock::now();
   auto now = std::chrono::steady_clock::now();
 
@@ -214,22 +253,26 @@ void Sender::send_data_frame(SendEndpoint &endpoint, const std::uint8_t *data,
 }
 
 void Sender::send_setup_frame(SendEndpoint &endpoint) {
-  protocol::SetupFrame setup;
-  setup.init(endpoint.session_id, endpoint.stream_id);
-  setup.term_length = endpoint.term_length;
-  setup.mtu_length = endpoint.mtu_length;
-  setup.initial_term_id = endpoint.term_id;
-  setup.active_term_id = endpoint.term_id;
-  setup.term_offset = endpoint.term_offset;
+  protocol::SetupHeader setup_header;
+  setup_header.init();
+  setup_header.session_id = endpoint.session_id;
+  setup_header.stream_id = endpoint.stream_id;
+  setup_header.term_length = endpoint.term_length;
+  setup_header.mtu_length = endpoint.mtu_length;
+  setup_header.initial_term_id = endpoint.term_id;
+  setup_header.active_term_id = endpoint.term_id;
+  setup_header.term_offset = endpoint.term_offset;
+  setup_header.set_frame_length(sizeof(setup_header));
 
 #ifdef _WIN32
-  int result = sendto(
-      endpoint.socket_fd, reinterpret_cast<const char *>(&setup), sizeof(setup),
-      0, reinterpret_cast<const sockaddr *>(&endpoint.destination_addr),
-      sizeof(endpoint.destination_addr));
+  int result =
+      sendto(endpoint.socket_fd, reinterpret_cast<const char *>(&setup_header),
+             sizeof(setup_header), 0,
+             reinterpret_cast<const sockaddr *>(&endpoint.destination_addr),
+             sizeof(endpoint.destination_addr));
 #else
   ssize_t result =
-      sendto(endpoint.socket_fd, &setup, sizeof(setup), 0,
+      sendto(endpoint.socket_fd, &setup_header, sizeof(setup_header), 0,
              reinterpret_cast<const sockaddr *>(&endpoint.destination_addr),
              sizeof(endpoint.destination_addr));
 #endif

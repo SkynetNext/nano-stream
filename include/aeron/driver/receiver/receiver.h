@@ -29,6 +29,8 @@ typedef int SOCKET;
 #define SOCKET_ERROR (-1)
 #endif
 
+#include "../log_buffer_manager.h"
+
 namespace aeron {
 namespace driver {
 
@@ -144,6 +146,11 @@ public:
    */
   void remove_subscription(std::int32_t stream_id, const std::string &channel);
 
+  /**
+   * Set the log buffer manager for writing received data.
+   */
+  void set_log_buffer_manager(std::shared_ptr<LogBufferManager> manager);
+
 private:
   /**
    * Process inbound data from all subscriptions.
@@ -164,7 +171,7 @@ private:
   /**
    * Process setup frame.
    */
-  void process_setup_frame(const protocol::SetupFrame &setup_frame);
+  void process_setup_frame(const protocol::SetupHeader &setup_header);
 
   /**
    * Send status message (flow control).
@@ -220,6 +227,9 @@ private:
 #ifdef _WIN32
   bool winsock_initialized_;
 #endif
+
+  // Log buffer manager for writing received data
+  std::shared_ptr<LogBufferManager> log_buffer_manager_;
 };
 
 } // namespace driver
