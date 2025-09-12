@@ -145,7 +145,8 @@ int LogBufferDescriptor::computeTermCount(int termId, int initialTermId) {
 }
 
 bool LogBufferDescriptor::isWithinTerm(std::int64_t position, int termId,
-                                       int termLength, int positionBitsToShift,
+                                       int /*termLength*/,
+                                       int positionBitsToShift,
                                        int initialTermId) {
   const int computedTermId =
       computeTermId(position, positionBitsToShift, initialTermId);

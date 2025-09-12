@@ -1,5 +1,4 @@
 #include "aeron/driver/log_buffer_manager.h"
-#include <algorithm>
 #include <cstring>
 
 namespace aeron {

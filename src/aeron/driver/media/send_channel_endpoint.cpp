@@ -1,5 +1,4 @@
 #include "aeron/driver/media/send_channel_endpoint.h"
-#include "aeron/driver/publication/network_publication.h"
 #include <algorithm>
 #include <iostream>
 

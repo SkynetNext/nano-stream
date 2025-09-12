@@ -7,7 +7,6 @@
 #include <unistd.h>
 #endif
 
-#include "aeron/driver/publication/network_publication.h"
 #include "aeron/driver/sender/sender.h"
 #include "aeron/logbuffer/log_buffer_descriptor.h"
 #include "aeron/logbuffer/term_scanner.h"

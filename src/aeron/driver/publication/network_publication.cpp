@@ -8,7 +8,6 @@
 #include "aeron/logbuffer/term_scanner.h"
 #include "aeron/protocol/header.h"
 #include <algorithm>
-#include <cstring>
 
 namespace aeron {
 namespace driver {
@@ -94,7 +93,7 @@ std::int32_t NetworkPublication::sendData(std::int64_t nowNs,
   return bytesSent;
 }
 
-void NetworkPublication::setupMessageCheck(std::int64_t nowNs,
+void NetworkPublication::setupMessageCheck(std::int64_t /*nowNs*/,
                                            std::int32_t activeTermId,
                                            std::int32_t termOffset) {
   // Simplified setup message - just send basic setup frame
