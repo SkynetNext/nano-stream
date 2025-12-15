@@ -1,0 +1,229 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test - Linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup GCC
+        if: matrix.compiler == 'gcc'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 g++-11
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+
+      - name: Setup Clang
+        if: matrix.compiler == 'clang'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-14
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
+
+      - name: Install CMake
+        uses: jwlawson/actions-setup-cmake@v1.14
+        with:
+          cmake-version: '3.20'
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          CMAKE_ARGS=(
+            -B build
+            -DCMAKE_BUILD_TYPE=Release
+            -DBUILD_TESTING=ON
+            -DBUILD_BENCHMARKS=ON
+            -DBUILD_EXAMPLES=ON
+          )
+          if [ "${{ matrix.compiler }}" == "gcc" ]; then
+            CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER=g++)
+          else
+            CMAKE_ARGS+=(-DCMAKE_CXX_COMPILER=clang++)
+          fi
+          cmake "${CMAKE_ARGS[@]}"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Run Tests
+        run: |
+          cd build
+          ctest --output-on-failure --parallel
+
+      - name: Run Benchmarks
+        run: |
+          cd build
+          ./benchmarks/nano_stream_benchmarks \
+            --benchmark_format=json \
+            --benchmark_out=benchmark_results_cpp.json \
+            --benchmark_min_time=0.5 || true
+
+      - name: Upload Benchmark Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-cpp-${{ matrix.compiler }}
+          path: build/benchmark_results_cpp.json
+          if-no-files-found: ignore
+
+  benchmark-comparison:
+    name: Performance Comparison - C++ vs Java Disruptor
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install CMake
+        uses: jwlawson/actions-setup-cmake@v1.14
+        with:
+          cmake-version: '3.20'
+
+      - name: Build C++ benchmarks
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DBUILD_BENCHMARKS=ON
+          cmake --build build --config Release --parallel
+
+      - name: Run C++ Benchmarks
+        run: |
+          cd build
+          ./benchmarks/nano_stream_benchmarks \
+            --benchmark_format=json \
+            --benchmark_out=../benchmark_cpp.json \
+            --benchmark_min_time=1.0
+
+      - name: Build Java Disruptor
+        working-directory: reference/disruptor
+        run: |
+          chmod +x gradlew
+          ./gradlew build -x test
+
+      - name: Run Java Disruptor JMH Benchmarks
+        working-directory: reference/disruptor
+        run: |
+          ./gradlew jmh --no-daemon \
+            -Pjmh.args='-rf json -rff ../../benchmark_java.json -foe true -v NORMAL' || true
+
+      - name: Run Java Disruptor Perf Tests
+        working-directory: reference/disruptor
+        run: |
+          ./gradlew perfJar || true
+          if ls build/libs/disruptor-perf-*.jar 1> /dev/null 2>&1; then
+            java -cp build/libs/disruptor-perf-*.jar \
+              com.lmax.disruptor.sequenced.OneToOneSequencedThroughputTest \
+              > ../../benchmark_java_perf.txt 2>&1 || true
+          fi
+
+      - name: Install jq for JSON parsing
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Generate Comparison Report
+        run: |
+          # Create scripts directory if it doesn't exist
+          mkdir -p scripts
+          
+          # Use the comparison script if available, otherwise generate simple report
+          if [ -f "scripts/compare_benchmarks.sh" ]; then
+            chmod +x scripts/compare_benchmarks.sh
+            ./scripts/compare_benchmarks.sh > comparison_report.md
+          else
+            echo "# Performance Comparison: Nano-Stream (C++) vs Disruptor (Java)" > comparison_report.md
+            echo "" >> comparison_report.md
+            echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> comparison_report.md
+            echo "" >> comparison_report.md
+            
+            if [ -f "benchmark_cpp.json" ]; then
+              echo "## C++ Benchmarks (Nano-Stream)" >> comparison_report.md
+              echo "" >> comparison_report.md
+              echo "\`\`\`json" >> comparison_report.md
+              head -100 benchmark_cpp.json >> comparison_report.md
+              echo "\`\`\`" >> comparison_report.md
+              echo "" >> comparison_report.md
+            fi
+            
+            if [ -f "benchmark_java.json" ]; then
+              echo "## Java Benchmarks (Disruptor)" >> comparison_report.md
+              echo "" >> comparison_report.md
+              echo "\`\`\`json" >> comparison_report.md
+              head -100 benchmark_java.json >> comparison_report.md
+              echo "\`\`\`" >> comparison_report.md
+              echo "" >> comparison_report.md
+            fi
+            
+            if [ -f "benchmark_java_perf.txt" ]; then
+              echo "## Java Perf Test Results" >> comparison_report.md
+              echo "" >> comparison_report.md
+              echo "\`\`\`" >> comparison_report.md
+              cat benchmark_java_perf.txt >> comparison_report.md
+              echo "\`\`\`" >> comparison_report.md
+            fi
+          fi
+          cat comparison_report.md
+
+      - name: Upload Comparison Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-comparison
+          path: |
+            benchmark_cpp.json
+            benchmark_java.json
+            benchmark_java_perf.txt
+            comparison_report.md
+          if-no-files-found: ignore
+
+      - name: Comment PR with Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## Performance Comparison Results\n\n';
+            
+            if (fs.existsSync('comparison_report.md')) {
+              comment += fs.readFileSync('comparison_report.md', 'utf8');
+            } else {
+              comment += 'Benchmark results are being generated...\n';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
