@@ -160,19 +160,9 @@ jobs:
           ./gradlew jmh --no-daemon \
             -Pjmh.args='-rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 1 -i 3 -t 1 -bm thrpt -include ".*SequenceBenchmark|.*RingBufferBenchmark|.*SingleProducerSingleConsumer"' || true
 
-          # JMH may also write to build/reports/jmh/result.json, copy it if the main file doesn't exist
+          # JMH may write to build/reports/jmh/result.json instead, copy it if needed
           if [ ! -f "../../benchmark_java.json" ] && [ -f "build/reports/jmh/result.json" ]; then
             cp build/reports/jmh/result.json ../../benchmark_java.json
-            echo "Copied JMH result from build/reports/jmh/result.json"
-          fi
-
-          # Verify the file exists
-          if [ -f "../../benchmark_java.json" ]; then
-            echo "Java benchmark file created: $(ls -lh ../../benchmark_java.json)"
-            echo "File size: $(wc -l < ../../benchmark_java.json) lines"
-          else
-            echo "Warning: Java benchmark file not found, checking alternative locations..."
-            find . -name "result.json" -type f 2>/dev/null | head -5
           fi
 
       - name: Install jq for JSON parsing
