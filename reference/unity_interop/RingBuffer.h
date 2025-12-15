@@ -74,22 +74,21 @@ class RingBuffer {
     Error PrepareWrite(size_t* head, size_t* tail);
 
     /**
-     * 执行写入 - 写入数据并处理扩容和环绕，维护本地头尾值
+     * 执行写入 - 写入数据并处理环绕，维护本地尾值
      * @param data 要写入的数据
      * @param size 数据大小
-     * @param head 当前头位置（输入输出参数）
+     * @param head 当前头位置（只读）
      * @param tail 当前尾位置（输入输出参数）
      * @return 实际写入的大小，0表示失败
      */
-    size_t DoWrite(const void* data, size_t size, size_t* head, size_t* tail);
+    size_t DoWrite(const void* data, size_t size, size_t head, size_t* tail);
 
     /**
-     * 提交写入 - 提交最终的头尾状态
-     * @param final_head 最终头位置
-     * @param final_tail 最终尾位置
+     * 提交写入 - 提交最终的尾位置
+     * @param new_tail 新的尾位置
      * @return Error::kSuccess 成功，其他值表示失败
      */
-    Error CommitWrite(size_t final_head, size_t final_tail);
+    Error CommitWrite(size_t new_tail);
 
     /**
      * 提交读取 - 更新头位置（用于 C# 端读取后更新）

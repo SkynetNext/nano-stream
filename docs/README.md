@@ -1,140 +1,26 @@
-# Tendermint 共识算法学习文档索引
+# Nano-Stream Documentation
 
-## 文档概览
+High-performance, low-latency C++ communication library inspired by LMAX Disruptor and Aeron.
 
-本目录包含了完整的Tendermint共识算法学习资料，从基础概念到高级理论，从可视化图表到数学公式，为不同层次的学习者提供全面的学习资源。
+## Core Documentation
 
-## 📚 核心学习文档
+- **[Architecture](ARCHITECTURE.md)** - System design, components, and design principles
+- **[Build Guide](BUILD_GUIDE.md)** - Building and integration instructions
+- **[Benchmark Results](BENCHMARK_RESULTS.md)** - Performance metrics and analysis
 
-### 1. [Tendermint共识算法学习指南](./TENDERMINT_CONSENSUS_LEARNING_GUIDE.md)
-**推荐阅读顺序: 1️⃣**
+## Quick Links
 
-- **内容**: 系统性的学习路径和检查点
-- **适合**: 初学者到中级学习者
-- **特点**: 
-  - 分阶段学习计划
-  - 详细的文档引用
-  - 实践建议和检查点
-  - 常见问题解答
+- [Project Status](../README.md) - Overview and features
+- [Source Code](../include/) - Header-only implementation
 
-### 2. [Tendermint共识算法可视化指南](./TENDERMINT_CONSENSUS_VISUALIZATION.md)
-**推荐阅读顺序: 2️⃣**
+## Design Philosophy
 
-- **内容**: 各种概念的可视化表示
-- **适合**: 视觉学习者，需要图表辅助理解的学习者
-- **特点**:
-  - 状态机图和流程图
-  - 时序图和交互图
-  - 性能分析图表
-  - Mermaid图表支持
+Nano-Stream combines the best ideas from:
+- **LMAX Disruptor**: Lock-free ring buffer patterns
+- **Aeron**: Zero-copy, high-performance messaging
 
-### 3. [Tendermint共识算法数学公式详解](./TENDERMINT_MATHEMATICAL_FORMULAS.md)
-**推荐阅读顺序: 3️⃣**
-
-- **内容**: 详细的数学公式和算法
-- **适合**: 高级学习者，需要深入理解理论的学习者
-- **特点**:
-  - 完整的算法描述
-  - 数学证明和定理
-  - 性能分析公式
-  - 配置参数计算
-
-## 🎯 学习路径建议
-
-### 初学者路径
-1. 阅读学习指南，了解整体框架
-2. 结合可视化指南理解核心概念
-3. 搭建测试环境进行实践
-4. 完成各阶段检查点
-
-### 中级学习者路径
-1. 快速浏览学习指南
-2. 重点研究可视化指南中的图表
-3. 深入理解数学公式文档
-4. 分析实际代码实现
-
-### 高级学习者路径
-1. 直接阅读数学公式文档
-2. 研究安全性证明和性能分析
-3. 对比其他共识算法
-4. 参与实际项目开发
-
-## 📊 文档特色
-
-### 可视化内容
-- **状态机图**: 共识流程和状态转换
-- **流程图**: 详细的操作步骤
-- **时序图**: 节点间交互过程
-- **甘特图**: 时间线分析
-- **网络图**: 拓扑结构
-
-### 数学公式
-- **算法描述**: 伪代码和步骤说明
-- **数学证明**: 安全性和活性定理
-- **性能分析**: 吞吐量和延迟计算
-- **参数设置**: 超时和权重配置
-
-### 实践指导
-- **环境搭建**: 测试网络配置
-- **代码阅读**: 重点文件和目录
-- **调试技巧**: 日志分析和故障排除
-- **生产部署**: 配置和优化建议
-
-## 🔗 相关资源
-
-### 官方文档
-- [Tendermint官方文档](https://docs.tendermint.com/)
-- [Cosmos网络文档](https://docs.cosmos.network/)
-- [GitHub代码库](https://github.com/tendermint/tendermint)
-
-### 学术论文
-- "Tendermint: Byzantine Fault Tolerance in the Age of Blockchains"
-- "Practical Byzantine Fault Tolerance"
-- "The Byzantine Generals Problem"
-
-### 社区资源
-- [Cosmos论坛](https://forum.cosmos.network/)
-- [GitHub讨论区](https://github.com/tendermint/tendermint/discussions)
-- [Discord社区](https://discord.gg/cosmosnetwork)
-
-## 📝 使用建议
-
-### 阅读顺序
-1. **先整体后细节**: 从学习指南开始，了解整体框架
-2. **理论与实践结合**: 边学习边搭建测试环境
-3. **图表辅助理解**: 遇到复杂概念时查看可视化指南
-4. **深入数学基础**: 需要理论支撑时参考数学公式文档
-
-### 学习技巧
-- **做笔记**: 记录关键概念和疑问
-- **画图**: 自己绘制状态机图和流程图
-- **编程**: 实现简单的共识算法
-- **讨论**: 参与社区讨论，分享学习心得
-
-### 检查进度
-- 完成各阶段检查点
-- 能够解释核心概念
-- 理解数学公式含义
-- 掌握实践技能
-
-## 🤝 贡献指南
-
-欢迎对文档进行改进和补充：
-
-1. **报告问题**: 发现错误或不清楚的地方
-2. **添加内容**: 补充缺失的概念或示例
-3. **改进图表**: 优化可视化效果
-4. **翻译文档**: 提供多语言版本
-
-## 📞 联系方式
-
-如有问题或建议，请通过以下方式联系：
-- 提交GitHub Issue
-- 发送邮件至项目维护者
-- 在社区论坛讨论
-
----
-
-**最后更新**: 2024年
-**文档版本**: v1.0
-**维护者**: Tendermint学习社区
+Key principles:
+- Zero allocation during operation
+- Cache-line optimized memory layout
+- Lock-free algorithms
+- Sub-nanosecond latency operations

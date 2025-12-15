@@ -136,8 +136,52 @@ HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL HGameBattle_Update(HGameBat
 }
 
 HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL
-HGameBattle_GetBufferInfo(HGameBattleContext* context, HGameBattleBufferInfo* info) {
-    if (!ValidateContext(context) || !info) {
+HGameBattle_Pause(HGameBattleContext* context) {
+    if (!ValidateContext(context)) {
+        return HGAME_BATTLE_ERROR_INVALID_PARAM;
+    }
+
+    try {
+        ClearLastError();
+
+        auto* battleContext = GetBattleContext(context);
+        battleContext->Pause();
+
+        return HGAME_BATTLE_SUCCESS;
+
+    } catch (const std::exception& e) {
+        SetLastError(std::string("Exception during pause: ") + e.what(),
+                     HGAME_BATTLE_ERROR_PAUSE_FAILED);
+        return HGAME_BATTLE_ERROR_PAUSE_FAILED;
+    } catch (...) {
+        SetLastError("Unknown exception during pause", HGAME_BATTLE_ERROR_PAUSE_FAILED);
+        return HGAME_BATTLE_ERROR_PAUSE_FAILED;
+    }
+}
+
+HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL
+HGameBattle_Resume(HGameBattleContext* context) {
+    try {
+        ClearLastError();
+
+        auto* battleContext = GetBattleContext(context);
+        battleContext->Resume();
+
+        return HGAME_BATTLE_SUCCESS;
+
+    } catch (const std::exception& e) {
+        SetLastError(std::string("Exception during resume: ") + e.what(),
+                     HGAME_BATTLE_ERROR_RESUME_FAILED);
+        return HGAME_BATTLE_ERROR_RESUME_FAILED;
+    } catch (...) {
+        SetLastError("Unknown exception during resume", HGAME_BATTLE_ERROR_RESUME_FAILED);
+        return HGAME_BATTLE_ERROR_RESUME_FAILED;
+    }
+}
+
+HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL
+HGameBattle_GetBufferInfo(HGameBattleContext* context, HGameBattleBufferStats* stats) {
+    if (!ValidateContext(context) || !stats) {
         return HGAME_BATTLE_ERROR_INVALID_PARAM;
     }
 
@@ -147,12 +191,27 @@ HGameBattle_GetBufferInfo(HGameBattleContext* context, HGameBattleBufferInfo* in
         auto* battleContext = GetBattleContext(context);
         auto bufferInfo = battleContext->GetBufferInfo();
 
-        info->connected = bufferInfo.connected ? 1 : 0;
-        info->totalSize = bufferInfo.total_size;
-        info->inputWriteFrames = bufferInfo.input_stats.total_writes;
-        info->inputReadFrames = bufferInfo.input_stats.total_reads;
-        info->outputWriteFrames = bufferInfo.output_stats.total_writes;
-        info->outputReadFrames = bufferInfo.output_stats.total_reads;
+        stats->connected = bufferInfo.connected ? 1 : 0;
+
+        // 容量分别返回输入与输出容量
+        stats->inputCapacity =
+            bufferInfo.connected ? battleContext->GetInputBuffer()->GetCapacity() : 0;
+        stats->outputCapacity =
+            bufferInfo.connected ? battleContext->GetOutputBuffer()->GetCapacity() : 0;
+
+        // 输入统计
+        stats->inputTotalWrites = bufferInfo.input_stats.total_writes;
+        stats->inputTotalReads = bufferInfo.input_stats.total_reads;
+        stats->inputFailedWrites = bufferInfo.input_stats.failed_writes;
+        stats->inputFailedReads = bufferInfo.input_stats.failed_reads;
+        stats->inputCurrentSize = bufferInfo.input_stats.current_size;
+
+        // 输出统计
+        stats->outputTotalWrites = bufferInfo.output_stats.total_writes;
+        stats->outputTotalReads = bufferInfo.output_stats.total_reads;
+        stats->outputFailedWrites = bufferInfo.output_stats.failed_writes;
+        stats->outputFailedReads = bufferInfo.output_stats.failed_reads;
+        stats->outputCurrentSize = bufferInfo.output_stats.current_size;
 
         return HGAME_BATTLE_SUCCESS;
 
@@ -418,11 +477,8 @@ extern "C" HGameBattleResult HGameBattle_CommitInputWrite(HGameBattleContext* co
         return HGAME_BATTLE_ERROR_INVALID_PARAM;
     }
 
-    // 获取当前的head，只更新tail
-    size_t currentHead = ringBuffer->GetHead();
-
-    // 提交写入（保持head不变，只更新tail）
-    auto result = ringBuffer->CommitWrite(currentHead, newTail);
+    // 提交写入（只更新tail）
+    auto result = ringBuffer->CommitWrite(newTail);
     if (result != RingBuffer::Error::kSuccess) {
         return HGAME_BATTLE_ERROR_INVALID_PARAM;
     }

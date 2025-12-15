@@ -115,6 +115,20 @@ void UnityBattleContext::Update(float delta_time) {
     battle_->doUpdateWrapper();
 }
 
+void UnityBattleContext::Pause() {
+    if (!initialized_ || !battle_) {
+        return;
+    }
+    battle_->pause();
+}
+
+void UnityBattleContext::Resume() {
+    if (!initialized_ || !battle_) {
+        return;
+    }
+    battle_->resume();
+}
+
 UnityBattleContext::BufferInfo UnityBattleContext::GetBufferInfo() const {
     BufferInfo info;
 
@@ -162,10 +176,6 @@ void UnityBattleContext::ProcessIncomingMessages() {
         uint16_t messageId =
             *reinterpret_cast<const uint16_t*>(headerSpan.subspan(sizeof(uint16_t)).data());
 
-        // 调试日志：检查接收到的消息ID
-        LOG_DEBUG(
-            "UnityBattleContext", "Received message ID: {}, Size: {}", messageId, messageSize);
-
         // 检查消息大小是否合理
         if (messageSize == 0 || messageSize > 65535) {
             LOG_ERROR(
@@ -196,14 +206,6 @@ void UnityBattleContext::ProcessIncomingMessages() {
         // 移动到下一个消息
         offset += totalMessageSize;
     }
-
-    LOG_DEBUG("UnityBattleContext",
-              "Processed {} bytes from input buffer, parsed {} messages",
-              dataSize,
-              offset
-                  / (offset > 0
-                         ? offset / (dataSize / (offset / BattleMessageHandler::kMessageHeaderSize))
-                         : 1));
 }
 
 bool UnityBattleContext::parseAndDispatchMessage(uint16_t messageId,
@@ -231,10 +233,6 @@ bool UnityBattleContext::parseAndDispatchMessage(uint16_t messageId,
     auto* dispatcher = battle_->getMessageDispatcher();
     if (dispatcher) {
         dispatcher->dispatch(messageId, *message);
-        LOG_DEBUG("UnityBattleContext",
-                  "Successfully dispatched message ID: {}, size: {} bytes",
-                  messageId,
-                  messageBody.size());
     } else {
         LOG_ERROR("UnityBattleContext", "MessageDispatcher not available in Battle");
         return false;

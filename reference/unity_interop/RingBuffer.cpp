@@ -82,10 +82,9 @@ RingBuffer::Error RingBuffer::PrepareWrite(size_t* head, size_t* tail) {
     return Error::kSuccess;
 }
 
-RingBuffer::Error RingBuffer::CommitWrite(size_t final_head, size_t final_tail) {
-    // 原子地更新头尾指针
-    head_.store(final_head, std::memory_order_release);
-    tail_.store(final_tail, std::memory_order_release);
+RingBuffer::Error RingBuffer::CommitWrite(size_t new_tail) {
+    // 原子地更新尾指针（写入操作只需要更新尾指针）
+    tail_.store(new_tail, std::memory_order_release);
 
     // 更新统计信息
     total_writes_.fetch_add(1, std::memory_order_relaxed);
@@ -93,17 +92,17 @@ RingBuffer::Error RingBuffer::CommitWrite(size_t final_head, size_t final_tail) 
     return Error::kSuccess;
 }
 
-size_t RingBuffer::DoWrite(const void* data, size_t size, size_t* head, size_t* tail) {
-    if (!data || size == 0 || !head || !tail) {
+size_t RingBuffer::DoWrite(const void* data, size_t size, size_t head, size_t* tail) {
+    if (!data || size == 0 || !tail) {
         return 0;
     }
 
-    // 检查是否需要扩容
+    // 检查是否有足够空间
     size_t available_space;
-    if (*tail >= *head) {
-        available_space = capacity_ - (*tail - *head) - 1;
+    if (*tail >= head) {
+        available_space = capacity_ - (*tail - head) - 1;
     } else {
-        available_space = *head - *tail - 1;
+        available_space = head - *tail - 1;
     }
 
     if (size > available_space) {

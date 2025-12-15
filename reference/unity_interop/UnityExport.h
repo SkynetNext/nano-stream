@@ -22,7 +22,9 @@ typedef enum {
     HGAME_BATTLE_ERROR_INVALID_PARAM = -1,
     HGAME_BATTLE_ERROR_INIT_FAILED = -2,
     HGAME_BATTLE_ERROR_NOT_INITIALIZED = -3,
-    HGAME_BATTLE_ERROR_UPDATE_FAILED = -4
+    HGAME_BATTLE_ERROR_UPDATE_FAILED = -4,
+    HGAME_BATTLE_ERROR_PAUSE_FAILED = -5,
+    HGAME_BATTLE_ERROR_RESUME_FAILED = -6,
 } HGameBattleResult;
 
 // 简化的上下文句柄
@@ -30,15 +32,22 @@ typedef struct {
     void* handle;  // 内部句柄，Unity端不需要关心具体内容
 } HGameBattleContext;
 
-// 缓冲区状态信息
+// 新版环形缓冲区统计信息（建议改用此结构与接口）
 typedef struct {
     int connected;
-    size_t totalSize;
-    uint64_t inputWriteFrames;
-    uint64_t inputReadFrames;
-    uint64_t outputWriteFrames;
-    uint64_t outputReadFrames;
-} HGameBattleBufferInfo;
+    size_t inputCapacity;
+    size_t outputCapacity;
+    uint64_t inputTotalWrites;
+    uint64_t inputTotalReads;
+    uint64_t inputFailedWrites;
+    uint64_t inputFailedReads;
+    uint64_t inputCurrentSize;
+    uint64_t outputTotalWrites;
+    uint64_t outputTotalReads;
+    uint64_t outputFailedWrites;
+    uint64_t outputFailedReads;
+    uint64_t outputCurrentSize;
+} HGameBattleBufferStats;
 
 // ===== 零拷贝API =====
 
@@ -57,9 +66,16 @@ HGameBattle_Shutdown(HGameBattleContext* context);
 HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL HGameBattle_Update(HGameBattleContext* context,
                                                                         float deltaTime);
 
-// 获取缓冲区状态信息
+// 逻辑暂停
+HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL HGameBattle_Pause(HGameBattleContext* context);
+
+// 逻辑运行
 HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL
-HGameBattle_GetBufferInfo(HGameBattleContext* context, HGameBattleBufferInfo* info);
+HGameBattle_Resume(HGameBattleContext* context);
+
+// 获取环形缓冲区统计信息
+HGAME_BATTLE_API HGameBattleResult HGAME_BATTLE_CALL
+HGameBattle_GetBufferInfo(HGameBattleContext* context, HGameBattleBufferStats* stats);
 
 // ===== 信息查询API =====
 

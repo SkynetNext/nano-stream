@@ -51,8 +51,9 @@ cmake --build .
 
 ## 📚 Documentation
 
-- 📊 [**Benchmark Results**](docs/BENCHMARK_RESULTS.md) - Complete performance analysis
-- 🏗️ [**Build Guide**](docs/BUILD_GUIDE.md) - Detailed build instructions  
+- 🏗️ [**Architecture**](docs/ARCHITECTURE.md) - System design and components
+- 📊 [**Benchmark Results**](docs/BENCHMARK_RESULTS.md) - Performance analysis
+- 🛠️ [**Build Guide**](docs/BUILD_GUIDE.md) - Build instructions  
 - 📋 [**Project Status**](docs/PROJECT_STATUS.md) - Development roadmap
 
 ## 🧪 Testing

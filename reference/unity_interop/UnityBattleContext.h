@@ -26,6 +26,12 @@ class UnityBattleContext {
     // 核心更新逻辑（每帧调用一次，唯一的P/Invoke）
     void Update(float delta_time);
 
+    // 暂停战斗逻辑
+    void Pause();
+
+    // 恢复战斗逻辑
+    void Resume();
+
     // 获取缓冲区状态信息
     struct BufferInfo {
         bool connected{false};
