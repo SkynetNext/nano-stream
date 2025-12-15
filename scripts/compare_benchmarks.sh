@@ -8,6 +8,61 @@ echo ""
 echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 echo ""
 
+# Extract hardware information from C++ benchmark JSON
+if [ -f "$CPP_FILE" ] && command -v jq &> /dev/null; then
+  echo "## Test Environment"
+  echo ""
+  if jq -e '.context' "$CPP_FILE" > /dev/null 2>&1; then
+    echo "### Hardware Information"
+    echo ""
+    jq -r '.context | 
+      "| Property | Value |
+|----------|-------|
+| Host | \(.host_name // "N/A") |
+| CPU Cores | \(.num_cpus // "N/A") |
+| CPU Frequency | \(.mhz_per_cpu // "N/A") MHz |
+| CPU Scaling | \(if .cpu_scaling_enabled then "Enabled" else "Disabled" end) |
+| ASLR | \(if .aslr_enabled then "Enabled" else "Disabled" end) |"' "$CPP_FILE" 2>/dev/null || echo "Hardware information not available"
+    
+    echo ""
+    echo "### Cache Information"
+    echo ""
+    jq -r '.context.caches[]? | 
+      "| Level \(.level) \(.type) Cache | \(.size) bytes (shared by \(.num_sharing) cores) |"' "$CPP_FILE" 2>/dev/null | head -10 || echo "Cache information not available"
+    echo ""
+    
+    echo "### NUMA Information"
+    echo ""
+    # Check if numactl is available and get NUMA info
+    if command -v numactl &> /dev/null; then
+      echo "| Property | Value |"
+      echo "|----------|-------|"
+      numactl --hardware 2>/dev/null | grep -E "^available:|^node" | while IFS= read -r line; do
+        if [[ $line =~ ^available: ]]; then
+          echo "| NUMA Nodes Available | $(echo "$line" | cut -d: -f2 | xargs) |"
+        elif [[ $line =~ ^node ]]; then
+          node_info=$(echo "$line" | sed 's/node \([0-9]*\) cpus: \(.*\) size: \([0-9]*\) MB/node \1: \2 CPUs, \3 MB/')
+          echo "| $node_info |"
+        fi
+      done || echo "| NUMA information | Not available |"
+    else
+      # Fallback: try to get from /proc
+      if [ -f /proc/cpuinfo ]; then
+        numa_nodes=$(ls -d /sys/devices/system/node/node* 2>/dev/null | wc -l)
+        if [ "$numa_nodes" -gt 0 ]; then
+          echo "| NUMA Nodes | $numa_nodes |"
+          echo "| CPU to Node mapping | See /proc/cpuinfo |"
+        else
+          echo "| NUMA | Not available or single node |"
+        fi
+      else
+        echo "| NUMA | Information not available |"
+      fi
+    fi
+    echo ""
+  fi
+fi
+
 # Check if files exist
 CPP_FILE="benchmark_cpp.json"
 JAVA_FILE="benchmark_java.json"
