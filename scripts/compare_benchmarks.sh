@@ -56,9 +56,9 @@ if [ -f "$JAVA_FILE" ]; then
     echo "| Benchmark | Throughput (ops/sec) | Score |"
     echo "|-----------|---------------------|-------|"
     
-    # JMH JSON format: .benchmarks[].benchmark and .benchmarks[].primaryMetric.score
+    # JMH JSON format: array of objects, each has .benchmark and .primaryMetric.score
     # Filter to only throughput tests and core benchmarks matching C++ tests
-    jq -r '.benchmarks[] | 
+    jq -r '.[] | 
       select(.mode == "thrpt") |
       select(.benchmark | test("SequenceBenchmark|RingBufferBenchmark|SingleProducerSingleConsumer")) |
       (.primaryMetric.score * (
