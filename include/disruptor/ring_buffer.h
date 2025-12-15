@@ -89,7 +89,7 @@ public:
  * - Error code based error handling (no exceptions for operations)
  */
 template <typename T>
-class alignas(std::hardware_destructive_interference_size) RingBuffer {
+class alignas(CACHE_LINE_SIZE) RingBuffer {
 private:
   static constexpr size_t BUFFER_PAD = 32;
 
@@ -99,14 +99,14 @@ private:
   std::unique_ptr<T[]> entries_;
 
   // Sequence for tracking the current position
-  alignas(std::hardware_destructive_interference_size) Sequence cursor_;
+  alignas(CACHE_LINE_SIZE) Sequence cursor_;
 
   // Next value to be published
-  alignas(std::hardware_destructive_interference_size)
+  alignas(CACHE_LINE_SIZE)
       std::atomic<int64_t> next_value_;
 
   // Cached minimum sequence from gating sequences
-  alignas(std::hardware_destructive_interference_size)
+  alignas(CACHE_LINE_SIZE)
       std::atomic<int64_t> cached_value_;
 
   // Gating sequences for consumers

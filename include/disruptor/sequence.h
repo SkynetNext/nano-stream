@@ -1,10 +1,20 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <new>
 
 namespace disruptor {
+
+// Compatibility: hardware_destructive_interference_size may not be available
+// in all C++17 implementations. Use 64 bytes (typical cache line size) as fallback.
+#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201703L
+  inline constexpr size_t CACHE_LINE_SIZE = std::hardware_destructive_interference_size;
+#else
+  // Fallback to 64 bytes (typical cache line size for x86-64)
+  inline constexpr size_t CACHE_LINE_SIZE = 64;
+#endif
 
 /**
  * Cache-line aligned atomic sequence number for high-performance lock-free
@@ -15,15 +25,14 @@ namespace disruptor {
  * - Atomic operations for thread-safe access
  * - Memory ordering semantics for optimal performance
  */
-class alignas(std::hardware_destructive_interference_size) Sequence {
+class alignas(CACHE_LINE_SIZE) Sequence {
 public:
   /// Initial value for sequences
   static constexpr int64_t INITIAL_VALUE = -1L;
 
 private:
   // Left padding to prevent false sharing
-  alignas(
-      std::hardware_destructive_interference_size) std::atomic<int64_t> value_;
+  alignas(CACHE_LINE_SIZE) std::atomic<int64_t> value_;
 
   // Right padding is automatically handled by the alignas directive
 
@@ -127,7 +136,7 @@ public:
   const std::atomic<int64_t> &get_atomic() const noexcept { return value_; }
 };
 
-static_assert(sizeof(Sequence) >= std::hardware_destructive_interference_size,
+static_assert(sizeof(Sequence) >= CACHE_LINE_SIZE,
               "Sequence must be at least one cache line size");
 
 } // namespace disruptor
