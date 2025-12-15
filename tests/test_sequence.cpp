@@ -92,6 +92,6 @@ TEST_F(SequenceTest, ConcurrentAccess) {
 
 TEST_F(SequenceTest, MemoryAlignment) {
   // Test that Sequence is properly aligned
-  EXPECT_EQ(alignof(Sequence), std::hardware_destructive_interference_size);
-  EXPECT_GE(sizeof(Sequence), std::hardware_destructive_interference_size);
+  EXPECT_EQ(alignof(Sequence), CACHE_LINE_SIZE);
+  EXPECT_GE(sizeof(Sequence), CACHE_LINE_SIZE);
 }

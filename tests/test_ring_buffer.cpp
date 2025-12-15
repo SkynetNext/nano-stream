@@ -207,8 +207,7 @@ TEST_F(RingBufferTest, ConcurrentProducerSingleConsumer) {
 
 TEST_F(RingBufferTest, MemoryAlignment) {
   // Test that RingBuffer is properly aligned
-  EXPECT_EQ(alignof(RingBuffer<TestEvent>),
-            std::hardware_destructive_interference_size);
+  EXPECT_EQ(alignof(RingBuffer<TestEvent>), CACHE_LINE_SIZE);
 }
 
 TEST_F(RingBufferTest, ErrorHandling) {
