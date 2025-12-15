@@ -14,6 +14,7 @@ static void BM_SequenceGet(benchmark::State &state) {
     int64_t value = seq.get();
     benchmark::DoNotOptimize(&value);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_SequenceGet);
 
@@ -24,6 +25,7 @@ static void BM_SequenceSet(benchmark::State &state) {
   for (auto _ : state) {
     seq.set(counter++);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_SequenceSet);
 
@@ -34,6 +36,7 @@ static void BM_SequenceIncrementAndGet(benchmark::State &state) {
     int64_t value = seq.increment_and_get();
     benchmark::DoNotOptimize(&value);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_SequenceIncrementAndGet);
 
@@ -46,6 +49,7 @@ static void BM_SequenceCompareAndSet(benchmark::State &state) {
       expected++;
     }
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_SequenceCompareAndSet);
 
@@ -57,6 +61,7 @@ static void BM_AtomicLoad(benchmark::State &state) {
     int64_t value = atomic_val.load(std::memory_order_acquire);
     benchmark::DoNotOptimize(&value);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_AtomicLoad);
 
@@ -67,6 +72,7 @@ static void BM_AtomicStore(benchmark::State &state) {
   for (auto _ : state) {
     atomic_val.store(counter++, std::memory_order_release);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_AtomicStore);
 
@@ -77,6 +83,7 @@ static void BM_AtomicFetchAdd(benchmark::State &state) {
     int64_t value = atomic_val.fetch_add(1, std::memory_order_acq_rel);
     benchmark::DoNotOptimize(&value);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_AtomicFetchAdd);
 
@@ -87,6 +94,7 @@ static void BM_SequenceConcurrentIncrements(benchmark::State &state) {
   for (auto _ : state) {
     seq.increment_and_get();
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_SequenceConcurrentIncrements)
     ->ThreadRange(1, std::thread::hardware_concurrency());
@@ -97,6 +105,7 @@ static void BM_AtomicConcurrentIncrements(benchmark::State &state) {
   for (auto _ : state) {
     atomic_val.fetch_add(1, std::memory_order_acq_rel);
   }
+  state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_AtomicConcurrentIncrements)
     ->ThreadRange(1, std::thread::hardware_concurrency());
