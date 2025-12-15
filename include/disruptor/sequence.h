@@ -7,14 +7,11 @@
 
 namespace disruptor {
 
-// Compatibility: hardware_destructive_interference_size may not be available
-// in all C++17 implementations. Use 64 bytes (typical cache line size) as fallback.
-#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201703L
-  inline constexpr size_t CACHE_LINE_SIZE = std::hardware_destructive_interference_size;
-#else
-  // Fallback to 64 bytes (typical cache line size for x86-64)
-  inline constexpr size_t CACHE_LINE_SIZE = 64;
-#endif
+// Cache line size: Fixed to 64 bytes for ABI stability and compatibility.
+// This is the standard cache line size for x86-64 architectures.
+// Using a fixed value avoids ABI incompatibility issues that can arise when
+// std::hardware_destructive_interference_size varies with compiler flags.
+inline constexpr size_t CACHE_LINE_SIZE = 64;
 
 /**
  * Cache-line aligned atomic sequence number for high-performance lock-free
