@@ -125,6 +125,9 @@ jobs:
             --benchmark_format=json \
             --benchmark_out=../benchmark_cpp.json \
             --benchmark_min_time=1.0
+          cd ..
+          echo "C++ benchmark file location: $(pwd)/benchmark_cpp.json"
+          ls -lh benchmark_cpp.json
 
       - name: Extract C++ benchmark test names
         id: extract_cpp_tests
@@ -160,9 +163,18 @@ jobs:
           ./gradlew jmh --no-daemon \
             -Pjmh.args='-rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 1 -i 3 -t 1 -bm thrpt -include ".*SequenceBenchmark|.*RingBufferBenchmark|.*SingleProducerSingleConsumer"' || true
 
-          # JMH may write to build/reports/jmh/result.json instead, copy it if needed
-          if [ ! -f "../../benchmark_java.json" ] && [ -f "build/reports/jmh/result.json" ]; then
-            cp build/reports/jmh/result.json ../../benchmark_java.json
+          # JMH writes to build/reports/jmh/result.json, always copy it to project root
+          JAVA_SOURCE="build/reports/jmh/result.json"
+          JAVA_TARGET="../../benchmark_java.json"
+
+          if [ -f "$JAVA_SOURCE" ]; then
+            cp "$JAVA_SOURCE" "$JAVA_TARGET"
+            echo "Copied Java benchmark from: $(pwd)/$JAVA_SOURCE"
+            echo "To: $(cd ../.. && pwd)/benchmark_java.json"
+            ls -lh "$JAVA_TARGET"
+          else
+            echo "ERROR: Java benchmark file not found at: $(pwd)/$JAVA_SOURCE"
+            find . -name "result.json" 2>/dev/null
           fi
 
       - name: Install jq for JSON parsing
@@ -172,6 +184,17 @@ jobs:
 
       - name: Generate Comparison Report
         run: |
+          echo "Current directory: $(pwd)"
+          echo ""
+          echo "Checking benchmark files:"
+          CPP_FILE="$(pwd)/benchmark_cpp.json"
+          JAVA_FILE="$(pwd)/benchmark_java.json"
+          echo "C++ file: $CPP_FILE"
+          [ -f "$CPP_FILE" ] && echo "  EXISTS: $(ls -lh "$CPP_FILE" | awk '{print $5, $9}')" || echo "  NOT FOUND"
+          echo "Java file: $JAVA_FILE"
+          [ -f "$JAVA_FILE" ] && echo "  EXISTS: $(ls -lh "$JAVA_FILE" | awk '{print $5, $9}')" || echo "  NOT FOUND"
+          echo ""
+
           # Create scripts directory if it doesn't exist
           mkdir -p scripts
 
