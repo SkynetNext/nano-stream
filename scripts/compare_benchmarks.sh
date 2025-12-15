@@ -8,8 +8,18 @@ echo ""
 echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 echo ""
 
+# Check if files exist
+CPP_FILE="benchmark_cpp.json"
+JAVA_FILE="benchmark_java.json"
+
+# Also check in reference/disruptor/build/reports/jmh/ if Java file not found
+if [ ! -f "$JAVA_FILE" ] && [ -f "reference/disruptor/build/reports/jmh/result.json" ]; then
+  cp reference/disruptor/build/reports/jmh/result.json "$JAVA_FILE"
+  echo "Copied Java benchmark file from reference/disruptor/build/reports/jmh/result.json"
+fi
+
 # Extract C++ benchmark results
-if [ -f "benchmark_cpp.json" ]; then
+if [ -f "$CPP_FILE" ]; then
   echo "## C++ Benchmarks (Nano-Stream)"
   echo ""
   echo "### Key Metrics"
@@ -20,32 +30,53 @@ if [ -f "benchmark_cpp.json" ]; then
     echo "| Benchmark | Throughput (ops/sec) | Latency (ns) |"
     echo "|-----------|---------------------|--------------|"
     
-    jq -r '.benchmarks[] | "| \(.name) | \(.iterations * 1000000000 / .real_time // "N/A") | \(.real_time // "N/A") |"' benchmark_cpp.json | head -20
+    jq -r '.benchmarks[] | 
+      (.iterations * 1000000000 / .real_time) as $throughput |
+      "| \(.name) | \($throughput) | \(.real_time) |"' \
+      "$CPP_FILE" | head -30
   else
     echo "\`\`\`json"
-    head -100 benchmark_cpp.json
+    head -100 "$CPP_FILE"
     echo "\`\`\`"
   fi
+  echo ""
+else
+  echo "> C++ benchmark file not found: $CPP_FILE"
   echo ""
 fi
 
 # Extract Java benchmark results
-if [ -f "benchmark_java.json" ]; then
+if [ -f "$JAVA_FILE" ]; then
   echo "## Java Benchmarks (Disruptor)"
   echo ""
   echo "### Key Metrics"
   echo ""
   
   if command -v jq &> /dev/null; then
-    echo "| Benchmark | Throughput (ops/sec) | Latency (ns) |"
-    echo "|-----------|---------------------|--------------|"
+    echo "| Benchmark | Throughput (ops/sec) | Score |"
+    echo "|-----------|---------------------|-------|"
     
-    jq -r '.benchmarks[] | "| \(.benchmark) | \(.primaryMetric.score // "N/A") | \(.primaryMetric.scoreUnit // "N/A") |"' benchmark_java.json | head -20
+    # JMH JSON format: .benchmarks[].benchmark and .benchmarks[].primaryMetric.score
+    # Filter to only throughput tests and core benchmarks matching C++ tests
+    jq -r '.benchmarks[] | 
+      select(.mode == "thrpt") |
+      select(.benchmark | test("SequenceBenchmark|RingBufferBenchmark|SingleProducerSingleConsumer")) |
+      (.primaryMetric.score * (
+        if .primaryMetric.scoreUnit == "ops/us" then 1000000
+        elif .primaryMetric.scoreUnit == "ops/ms" then 1000
+        elif .primaryMetric.scoreUnit == "ops/s" then 1
+        else 1 end
+      )) as $ops_per_sec |
+      "| \(.benchmark) | \($ops_per_sec) | \(.primaryMetric.score) \(.primaryMetric.scoreUnit) |"' \
+      "$JAVA_FILE" | head -30
   else
     echo "\`\`\`json"
-    head -100 benchmark_java.json
+    head -100 "$JAVA_FILE"
     echo "\`\`\`"
   fi
+  echo ""
+else
+  echo "> Java benchmark file not found: $JAVA_FILE"
   echo ""
 fi
 
