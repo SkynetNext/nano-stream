@@ -8,6 +8,10 @@ echo ""
 echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 echo ""
 
+# Check if files exist
+CPP_FILE="benchmark_cpp.json"
+JAVA_FILE="benchmark_java.json"
+
 # Extract hardware information from C++ benchmark JSON
 if [ -f "$CPP_FILE" ] && command -v jq &> /dev/null; then
   echo "## Test Environment"
@@ -63,10 +67,6 @@ if [ -f "$CPP_FILE" ] && command -v jq &> /dev/null; then
   fi
 fi
 
-# Check if files exist
-CPP_FILE="benchmark_cpp.json"
-JAVA_FILE="benchmark_java.json"
-
 # Also check in reference/disruptor/build/reports/jmh/ if Java file not found
 if [ ! -f "$JAVA_FILE" ] && [ -f "reference/disruptor/build/reports/jmh/result.json" ]; then
   cp reference/disruptor/build/reports/jmh/result.json "$JAVA_FILE"
@@ -88,12 +88,12 @@ if [ -f "$CPP_FILE" ]; then
     jq -r '.benchmarks[] | 
       (.items_per_second // 0) as $throughput |
       (.time_unit // "ns") as $unit |
-      (.real_time / .iterations) as $latency |
-      (if $unit == "ns" then $latency
-       elif $unit == "us" then ($latency * 1000)
-       elif $unit == "ms" then ($latency * 1000000)
-       elif $unit == "s" then ($latency * 1000000000)
-       else $latency end) as $latency_ns |
+      (.real_time // 0) as $latency_raw |
+      (if $unit == "ns" then $latency_raw
+       elif $unit == "us" then ($latency_raw * 1000)
+       elif $unit == "ms" then ($latency_raw * 1000000)
+       elif $unit == "s" then ($latency_raw * 1000000000)
+       else $latency_raw end) as $latency_ns |
       "| \(.name) | \($throughput) | \($latency_ns) ns |"' \
       "$CPP_FILE" | head -30
   else
@@ -167,46 +167,48 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   CPP_SEQ_GET=$(jq -r '.benchmarks[] | select(.name == "BM_SequenceGet") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_SEQ_READ=$(jq -r '.[] | select(.benchmark | test("SequenceBenchmark\\.SequenceUnsafe")) | select(.benchmark | test("\\.read1$|\\.read2$")) | (.primaryMetric.score * (if .primaryMetric.scoreUnit == "ops/us" then 1000000 else 1 end))' "$JAVA_FILE" 2>/dev/null | awk '{sum+=$1; count++} END {if(count>0) print sum/count; else print 0}')
   
-  if [ ! -z "$CPP_SEQ_GET" ] && [ ! -z "$JAVA_SEQ_READ" ] && [ "$(echo "$JAVA_SEQ_READ > 0" | bc -l 2>/dev/null)" = "1" ]; then
+  if [ ! -z "$CPP_SEQ_GET" ] && [ ! -z "$JAVA_SEQ_READ" ] && [ "$(echo "$JAVA_SEQ_READ > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_SEQ_GET > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_SEQ_GET / $JAVA_SEQ_READ" | bc -l 2>/dev/null)
-    WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
-    printf "| Sequence Read | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_GET" "$JAVA_SEQ_READ" "$RATIO" "$WINNER"
+    if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
+      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      printf "| Sequence Read | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_GET" "$JAVA_SEQ_READ" "$RATIO" "$WINNER"
+    fi
   fi
   
   # Sequence Set - C++ uses BM_SequenceSet, Java uses SequenceUnsafe setValue1
   CPP_SEQ_SET=$(jq -r '.benchmarks[] | select(.name == "BM_SequenceSet") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_SEQ_SET=$(jq -r '.[] | select(.benchmark | test("SequenceBenchmark\\.SequenceUnsafe")) | select(.benchmark | test("setValue1")) | (.primaryMetric.score * (if .primaryMetric.scoreUnit == "ops/us" then 1000000 else 1 end))' "$JAVA_FILE" 2>/dev/null | head -1)
   
-  if [ ! -z "$CPP_SEQ_SET" ] && [ ! -z "$JAVA_SEQ_SET" ] && [ "$(echo "$JAVA_SEQ_SET > 0" | bc -l 2>/dev/null)" = "1" ]; then
+  if [ ! -z "$CPP_SEQ_SET" ] && [ ! -z "$JAVA_SEQ_SET" ] && [ "$(echo "$JAVA_SEQ_SET > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_SEQ_SET > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_SEQ_SET / $JAVA_SEQ_SET" | bc -l 2>/dev/null)
-    WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
-    printf "| Sequence Set | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_SET" "$JAVA_SEQ_SET" "$RATIO" "$WINNER"
+    if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
+      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      printf "| Sequence Set | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_SET" "$JAVA_SEQ_SET" "$RATIO" "$WINNER"
+    fi
   fi
   
   # Sequence Increment - C++ uses BM_SequenceIncrementAndGet, Java uses SequenceUnsafe incrementValue2
-  CPP_SEQ_INC=$(jq -r '.benchmarks[] | select(.name == "BM_SequenceIncrementAndGet") | 
-    (.time_unit // "ns") as $unit |
-    (.real_time / .iterations) as $latency |
-    (if $unit == "ns" then (1000000000 / $latency)
-     elif $unit == "us" then (1000000000 / ($latency * 1000))
-     elif $unit == "ms" then (1000000000 / ($latency * 1000000))
-     else (1000000000 / $latency) end)' "$CPP_FILE" 2>/dev/null | head -1)
+  CPP_SEQ_INC=$(jq -r '.benchmarks[] | select(.name == "BM_SequenceIncrementAndGet") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_SEQ_INC=$(jq -r '.[] | select(.benchmark | test("SequenceBenchmark\\.SequenceUnsafe")) | select(.benchmark | test("incrementValue2")) | (.primaryMetric.score * (if .primaryMetric.scoreUnit == "ops/us" then 1000000 else 1 end))' "$JAVA_FILE" 2>/dev/null | head -1)
   
-  if [ ! -z "$CPP_SEQ_INC" ] && [ ! -z "$JAVA_SEQ_INC" ] && [ "$(echo "$JAVA_SEQ_INC > 0" | bc -l 2>/dev/null)" = "1" ]; then
+  if [ ! -z "$CPP_SEQ_INC" ] && [ ! -z "$JAVA_SEQ_INC" ] && [ "$(echo "$JAVA_SEQ_INC > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_SEQ_INC > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_SEQ_INC / $JAVA_SEQ_INC" | bc -l 2>/dev/null)
-    WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
-    printf "| Sequence Increment | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_INC" "$JAVA_SEQ_INC" "$RATIO" "$WINNER"
+    if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
+      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      printf "| Sequence Increment | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_INC" "$JAVA_SEQ_INC" "$RATIO" "$WINNER"
+    fi
   fi
   
   # RingBuffer - C++ uses BM_RingBufferSingleProducer/1024, Java uses RingBufferUnsafe
   CPP_RB=$(jq -r '.benchmarks[] | select(.name | test("BM_RingBufferSingleProducer/1024")) | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_RB=$(jq -r '.[] | select(.benchmark | test("RingBufferBenchmark\\.RingBufferUnsafe$")) | (.primaryMetric.score * (if .primaryMetric.scoreUnit == "ops/us" then 1000000 else 1 end))' "$JAVA_FILE" 2>/dev/null | head -1)
   
-  if [ ! -z "$CPP_RB" ] && [ ! -z "$JAVA_RB" ] && [ "$(echo "$JAVA_RB > 0" | bc -l 2>/dev/null)" = "1" ]; then
+  if [ ! -z "$CPP_RB" ] && [ ! -z "$JAVA_RB" ] && [ "$(echo "$JAVA_RB > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_RB > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_RB / $JAVA_RB" | bc -l 2>/dev/null)
-    WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
-    printf "| RingBuffer (Single Producer) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_RB" "$JAVA_RB" "$RATIO" "$WINNER"
+    if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
+      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      printf "| RingBuffer (Single Producer) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_RB" "$JAVA_RB" "$RATIO" "$WINNER"
+    fi
   fi
   
   echo ""
