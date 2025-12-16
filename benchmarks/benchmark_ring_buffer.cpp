@@ -25,6 +25,20 @@ static void BM_RingBufferSingleProducer(benchmark::State &state) {
 
   int64_t counter = 0;
 
+  // Warmup: perform iterations to warm up cache and branch predictors
+  // For RingBuffer, we need to fill the buffer multiple times to ensure
+  // the ring buffer wraps around and stabilizes
+  const int warmup_iterations = buffer_size * 3; // Fill buffer 3 times
+  for (int i = 0; i < warmup_iterations; ++i) {
+    int64_t sequence = ring_buffer.next();
+    BenchmarkEvent &event = ring_buffer.get(sequence);
+    event.value = counter++;
+    ring_buffer.publish(sequence);
+  }
+
+  // Reset counter for actual benchmark
+  counter = 0;
+
   for (auto _ : state) {
     int64_t sequence = ring_buffer.next();
     BenchmarkEvent &event = ring_buffer.get(sequence);
@@ -34,7 +48,12 @@ static void BM_RingBufferSingleProducer(benchmark::State &state) {
 
   state.SetItemsProcessed(state.iterations());
 }
-BENCHMARK(BM_RingBufferSingleProducer)->Arg(1024)->Arg(4096)->Arg(16384);
+BENCHMARK(BM_RingBufferSingleProducer)
+    ->Arg(1024)
+    ->Arg(4096)
+    ->Arg(16384)
+    ->MinTime(1.0); // Ensure at least 1 second of measurement time for accurate
+                    // statistics
 
 static void BM_RingBufferBatchProducer(benchmark::State &state) {
   const size_t buffer_size = 16384;
