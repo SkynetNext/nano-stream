@@ -170,7 +170,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   if [ ! -z "$CPP_SEQ_GET" ] && [ ! -z "$JAVA_SEQ_READ" ] && [ "$(echo "$JAVA_SEQ_READ > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_SEQ_GET > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_SEQ_GET / $JAVA_SEQ_READ" | bc -l 2>/dev/null)
     if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
-      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
       printf "| Sequence Read | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_GET" "$JAVA_SEQ_READ" "$RATIO" "$WINNER"
     fi
   fi
@@ -182,7 +182,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   if [ ! -z "$CPP_SEQ_SET" ] && [ ! -z "$JAVA_SEQ_SET" ] && [ "$(echo "$JAVA_SEQ_SET > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_SEQ_SET > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_SEQ_SET / $JAVA_SEQ_SET" | bc -l 2>/dev/null)
     if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
-      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
       printf "| Sequence Set | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_SET" "$JAVA_SEQ_SET" "$RATIO" "$WINNER"
     fi
   fi
@@ -194,7 +194,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   if [ ! -z "$CPP_SEQ_INC" ] && [ ! -z "$JAVA_SEQ_INC" ] && [ "$(echo "$JAVA_SEQ_INC > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_SEQ_INC > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_SEQ_INC / $JAVA_SEQ_INC" | bc -l 2>/dev/null)
     if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
-      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
       printf "| Sequence Increment | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_SEQ_INC" "$JAVA_SEQ_INC" "$RATIO" "$WINNER"
     fi
   fi
@@ -206,7 +206,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   if [ ! -z "$CPP_RB" ] && [ ! -z "$JAVA_RB" ] && [ "$(echo "$JAVA_RB > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_RB > 0" | bc -l 2>/dev/null)" = "1" ]; then
     RATIO=$(echo "scale=2; $CPP_RB / $JAVA_RB" | bc -l 2>/dev/null)
     if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
-      WINNER=$(echo "$RATIO > 1" | bc -l 2>/dev/null && echo "C++" || echo "Java")
+      WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
       printf "| RingBuffer (Single Producer) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_RB" "$JAVA_RB" "$RATIO" "$WINNER"
     fi
   fi
