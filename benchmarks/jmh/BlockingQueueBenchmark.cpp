@@ -38,21 +38,29 @@ public:
       }
       if (!running_) return false;
     }
+    const bool was_empty = (count_ == 0);
     buf_[tail_] = e;
     tail_ = (tail_ + 1) % capacity_;
     ++count_;
-    cv_not_empty_.notify_one();
+    // Java signals notEmpty only on transitions from empty -> non-empty.
+    if (was_empty) {
+      cv_not_empty_.notify_one();
+    }
     return true;
   }
 
   nano_stream::bench::jmh::SimpleEvent* poll() {
     std::lock_guard<std::mutex> lk(mu_);
     if (count_ == 0) return nullptr;
+    const bool was_full = (count_ == capacity_);
     auto* out = buf_[head_];
     buf_[head_] = nullptr;
     head_ = (head_ + 1) % capacity_;
     --count_;
-    cv_not_full_.notify_one();
+    // Java signals notFull only on transitions from full -> not-full.
+    if (was_full) {
+      cv_not_full_.notify_one();
+    }
     return out;
   }
 
