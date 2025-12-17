@@ -5,7 +5,6 @@
 #include "DataProvider.h"
 #include "FixedSequenceGroup.h"
 #include "Sequence.h"
-#include "Sequencer.h"
 
 #include <cstdint>
 #include <functional>
@@ -14,45 +13,36 @@
 
 namespace disruptor {
 
-template <typename T>
-class EventPoller {
+template <typename T, typename SequencerT> class EventPoller {
 public:
   class Handler {
   public:
     virtual ~Handler() = default;
-    virtual bool onEvent(T& event, int64_t sequence, bool endOfBatch) = 0;
+    virtual bool onEvent(T &event, int64_t sequence, bool endOfBatch) = 0;
   };
 
-  enum class PollState {
-    PROCESSING,
-    GATING,
-    IDLE
-  };
+  enum class PollState { PROCESSING, GATING, IDLE };
 
-  EventPoller(DataProvider<T>& dataProvider,
-              Sequencer& sequencer,
-              std::shared_ptr<Sequence> sequence,
-              Sequence& gatingSequence)
-      : dataProvider_(&dataProvider),
-        sequencer_(&sequencer),
-        ownedSequence_(std::move(sequence)),
-        sequence_(ownedSequence_.get()),
-        gatingSequence_(&gatingSequence),
-        fixedGroup_(nullptr) {}
+  EventPoller(DataProvider<T> &dataProvider, SequencerT &sequencer,
+              std::shared_ptr<Sequence> sequence, Sequence &gatingSequence)
+      : dataProvider_(&dataProvider), sequencer_(&sequencer),
+        ownedSequence_(std::move(sequence)), sequence_(ownedSequence_.get()),
+        gatingSequence_(&gatingSequence), fixedGroup_(nullptr) {}
 
-  PollState poll(Handler& eventHandler) {
+  PollState poll(Handler &eventHandler) {
     const int64_t currentSequence = sequence_->get();
     int64_t nextSequence = currentSequence + 1;
-    const int64_t availableSequence =
-        sequencer_->getHighestPublishedSequence(nextSequence, gatingSequence_->get());
+    const int64_t availableSequence = sequencer_->getHighestPublishedSequence(
+        nextSequence, gatingSequence_->get());
 
     if (nextSequence <= availableSequence) {
       bool processNextEvent;
       int64_t processedSequence = currentSequence;
       try {
         do {
-          T& event = dataProvider_->get(nextSequence);
-          processNextEvent = eventHandler.onEvent(event, nextSequence, nextSequence == availableSequence);
+          T &event = dataProvider_->get(nextSequence);
+          processNextEvent = eventHandler.onEvent(
+              event, nextSequence, nextSequence == availableSequence);
           processedSequence = nextSequence;
           ++nextSequence;
         } while (nextSequence <= availableSequence && processNextEvent);
@@ -69,32 +59,34 @@ public:
     }
   }
 
-  static std::shared_ptr<EventPoller<T>> newInstance(DataProvider<T>& dataProvider,
-                                                     Sequencer& sequencer,
-                                                     std::shared_ptr<Sequence> sequence,
-                                                     Sequence& cursorSequence,
-                                                     Sequence* const* gatingSequences,
-                                                     int gatingCount) {
+  static std::shared_ptr<EventPoller<T, SequencerT>>
+  newInstance(DataProvider<T> &dataProvider, SequencerT &sequencer,
+              std::shared_ptr<Sequence> sequence, Sequence &cursorSequence,
+              Sequence *const *gatingSequences, int gatingCount) {
     if (gatingCount == 0) {
-      return std::make_shared<EventPoller<T>>(dataProvider, sequencer, std::move(sequence), cursorSequence);
+      return std::make_shared<EventPoller<T, SequencerT>>(
+          dataProvider, sequencer, std::move(sequence), cursorSequence);
     }
     if (gatingCount == 1) {
-      return std::make_shared<EventPoller<T>>(dataProvider, sequencer, std::move(sequence), *gatingSequences[0]);
+      return std::make_shared<EventPoller<T, SequencerT>>(
+          dataProvider, sequencer, std::move(sequence), *gatingSequences[0]);
     }
-    auto poller = std::make_shared<EventPoller<T>>(dataProvider, sequencer, std::move(sequence), cursorSequence);
-    poller->fixedGroup_ = std::make_unique<FixedSequenceGroup>(gatingSequences, gatingCount);
+    auto poller = std::make_shared<EventPoller<T, SequencerT>>(
+        dataProvider, sequencer, std::move(sequence), cursorSequence);
+    poller->fixedGroup_ =
+        std::make_unique<FixedSequenceGroup>(gatingSequences, gatingCount);
     poller->gatingSequence_ = poller->fixedGroup_.get();
     return poller;
   }
 
-  Sequence& getSequence() { return *sequence_; }
+  Sequence &getSequence() { return *sequence_; }
 
 private:
-  DataProvider<T>* dataProvider_;
-  Sequencer* sequencer_;
+  DataProvider<T> *dataProvider_;
+  SequencerT *sequencer_;
   std::shared_ptr<Sequence> ownedSequence_;
-  Sequence* sequence_;
-  Sequence* gatingSequence_;
+  Sequence *sequence_;
+  Sequence *gatingSequence_;
   std::unique_ptr<FixedSequenceGroup> fixedGroup_;
 };
 

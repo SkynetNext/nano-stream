@@ -4,10 +4,7 @@
 #include "jmh_util.h"
 
 #include "disruptor/BusySpinWaitStrategy.h"
-#include "disruptor/dsl/Disruptor.h"
-#include "disruptor/dsl/ProducerType.h"
-#include "disruptor/SingleProducerSequencer.h"
-#include "disruptor/util/DaemonThreadFactory.h"
+#include "disruptor/RingBuffer.h"
 
 #include <memory>
 
@@ -24,15 +21,12 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
   const auto wait_loops_before =
       disruptor::sp_wrap_wait_loops().load(std::memory_order_relaxed);
 
-  auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BusySpinWaitStrategy>();
+  disruptor::BusySpinWaitStrategy ws;
   auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
 
-  disruptor::dsl::Disruptor<nano_stream::bench::jmh::SimpleEvent> d(
-      factory, kRingBufferSize, tf, disruptor::dsl::ProducerType::SINGLE, std::move(ws));
-  nano_stream::bench::jmh::ConsumeHandler handler;
-  d.handleEventsWith(handler);
-  auto rb = d.start();
+  auto rb = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
+                                  disruptor::SingleProducerSequencer<disruptor::BusySpinWaitStrategy>>::
+      createSingleProducer(factory, kRingBufferSize, std::move(ws));
 
   // 1:1 with Java benchmark body:
   //   long sequence = ringBuffer.next();
@@ -67,7 +61,6 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
         benchmark::Counter(loops / ops, benchmark::Counter::kAvgThreads);
   }
 
-  d.shutdown();
 }
 
 static auto* bm_JMH_SingleProducerSingleConsumer_producing = [] {

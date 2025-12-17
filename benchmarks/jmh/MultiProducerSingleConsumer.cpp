@@ -4,9 +4,7 @@
 #include "jmh_util.h"
 
 #include "disruptor/BusySpinWaitStrategy.h"
-#include "disruptor/dsl/Disruptor.h"
-#include "disruptor/dsl/ProducerType.h"
-#include "disruptor/util/DaemonThreadFactory.h"
+#include "disruptor/RingBuffer.h"
 
 #include <cstdint>
 #include <memory>
@@ -21,15 +19,12 @@ constexpr int kMpThreads = 4;
 // 1:1 with Java JMH class:
 // reference/disruptor/src/jmh/java/com/lmax/disruptor/MultiProducerSingleConsumer.java
 static void JMH_MultiProducerSingleConsumer_producing(benchmark::State& state) {
-  auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BusySpinWaitStrategy>();
+  disruptor::BusySpinWaitStrategy ws;
   auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
 
-  disruptor::dsl::Disruptor<nano_stream::bench::jmh::SimpleEvent> d(
-      factory, kBigBuffer, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
-  nano_stream::bench::jmh::ConsumeHandler handler;
-  d.handleEventsWith(handler);
-  auto rb = d.start();
+  auto rb = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
+                                  disruptor::MultiProducerSequencer<disruptor::BusySpinWaitStrategy>>::
+      createMultiProducer(factory, kBigBuffer, std::move(ws));
 
   // 1:1 with Java benchmark body:
   //   long sequence = ringBuffer.next();
@@ -42,7 +37,6 @@ static void JMH_MultiProducerSingleConsumer_producing(benchmark::State& state) {
     e.value = 0;
     rb->publish(sequence);
   }
-  d.shutdown();
 }
 
 static auto* bm_JMH_MultiProducerSingleConsumer_producing = [] {
@@ -54,15 +48,12 @@ static auto* bm_JMH_MultiProducerSingleConsumer_producing = [] {
 
 // 1:1 with Java JMH method producingBatch(), including OperationsPerInvocation(BATCH_SIZE).
 static void JMH_MultiProducerSingleConsumer_producingBatch(benchmark::State& state) {
-  auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BusySpinWaitStrategy>();
+  disruptor::BusySpinWaitStrategy ws;
   auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
 
-  disruptor::dsl::Disruptor<nano_stream::bench::jmh::SimpleEvent> d(
-      factory, kBigBuffer, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
-  nano_stream::bench::jmh::ConsumeHandler handler;
-  d.handleEventsWith(handler);
-  auto rb = d.start();
+  auto rb = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
+                                  disruptor::MultiProducerSequencer<disruptor::BusySpinWaitStrategy>>::
+      createMultiProducer(factory, kBigBuffer, std::move(ws));
 
   for (auto _ : state) {
     int64_t hi = rb->next(kBatchSize);
@@ -77,7 +68,6 @@ static void JMH_MultiProducerSingleConsumer_producingBatch(benchmark::State& sta
   // JMH: @OperationsPerInvocation(BATCH_SIZE)
   state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(kBatchSize));
 
-  d.shutdown();
 }
 
 static auto* bm_JMH_MultiProducerSingleConsumer_producingBatch = [] {
