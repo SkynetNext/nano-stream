@@ -5,6 +5,7 @@
 
 #include "AbstractSequencer.h"
 #include "InsufficientCapacityException.h"
+#include "ProcessingSequenceBarrier.h"
 #include "Sequence.h"
 #include "WaitStrategy.h"
 #include "util/Util.h"
@@ -20,8 +21,8 @@ namespace disruptor {
 template <typename WaitStrategyT>
 class MultiProducerSequencer final : public AbstractSequencer<WaitStrategyT> {
 public:
-  MultiProducerSequencer(int bufferSize, WaitStrategyT waitStrategy)
-      : AbstractSequencer<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
+  MultiProducerSequencer(int bufferSize, WaitStrategyT &waitStrategy)
+      : AbstractSequencer<WaitStrategyT>(bufferSize, waitStrategy),
         gatingSequenceCache_(SEQUENCER_INITIAL_CURSOR_VALUE),
         availableBuffer_(static_cast<size_t>(bufferSize)),
         indexMask_(bufferSize - 1),
@@ -95,7 +96,7 @@ public:
   void publish(int64_t sequence) {
     setAvailable(sequence);
     if constexpr (WaitStrategyT::kIsBlockingStrategy) {
-      this->waitStrategy_.signalAllWhenBlocking();
+      this->waitStrategy_->signalAllWhenBlocking();
     }
   }
 
@@ -104,7 +105,7 @@ public:
       setAvailable(l);
     }
     if constexpr (WaitStrategyT::kIsBlockingStrategy) {
-      this->waitStrategy_.signalAllWhenBlocking();
+      this->waitStrategy_->signalAllWhenBlocking();
     }
   }
 
@@ -124,6 +125,14 @@ public:
       }
     }
     return availableSequence;
+  }
+
+  std::shared_ptr<ProcessingSequenceBarrier<
+      MultiProducerSequencer<WaitStrategyT>, WaitStrategyT>>
+  newBarrier(Sequence *const *sequencesToTrack, int count) {
+    return std::make_shared<ProcessingSequenceBarrier<
+        MultiProducerSequencer<WaitStrategyT>, WaitStrategyT>>(
+        *this, *this->waitStrategy_, this->cursor_, sequencesToTrack, count);
   }
 
   // Override to invalidate cache when gating sequences change

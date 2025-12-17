@@ -24,7 +24,7 @@ static void JMH_MultiProducerSingleConsumer_producing(benchmark::State& state) {
 
   auto rb = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
                                   disruptor::MultiProducerSequencer<disruptor::BusySpinWaitStrategy>>::
-      createMultiProducer(factory, kBigBuffer, std::move(ws));
+      createMultiProducer(factory, kBigBuffer, ws);
 
   // 1:1 with Java benchmark body:
   //   long sequence = ringBuffer.next();
@@ -53,7 +53,7 @@ static void JMH_MultiProducerSingleConsumer_producingBatch(benchmark::State& sta
 
   auto rb = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
                                   disruptor::MultiProducerSequencer<disruptor::BusySpinWaitStrategy>>::
-      createMultiProducer(factory, kBigBuffer, std::move(ws));
+      createMultiProducer(factory, kBigBuffer, ws);
 
   for (auto _ : state) {
     int64_t hi = rb->next(kBatchSize);

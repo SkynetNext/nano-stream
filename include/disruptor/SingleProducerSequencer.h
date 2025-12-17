@@ -5,6 +5,7 @@
 
 #include "AbstractSequencer.h"
 #include "InsufficientCapacityException.h"
+#include "ProcessingSequenceBarrier.h"
 #include "Sequence.h"
 #include "WaitStrategy.h"
 #include "util/Util.h"
@@ -41,16 +42,16 @@ namespace detail {
 template <typename WaitStrategyT>
 struct SpSequencerPad : public AbstractSequencer<WaitStrategyT> {
   std::byte p1[112]{};
-  SpSequencerPad(int bufferSize, WaitStrategyT waitStrategy)
-      : AbstractSequencer<WaitStrategyT>(bufferSize, std::move(waitStrategy)) {}
+  SpSequencerPad(int bufferSize, WaitStrategyT &waitStrategy)
+      : AbstractSequencer<WaitStrategyT>(bufferSize, waitStrategy) {}
 };
 
 template <typename WaitStrategyT>
 struct SpSequencerFields : public SpSequencerPad<WaitStrategyT> {
   int64_t nextValue_;
   int64_t cachedValue_;
-  SpSequencerFields(int bufferSize, WaitStrategyT waitStrategy)
-      : SpSequencerPad<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
+  SpSequencerFields(int bufferSize, WaitStrategyT &waitStrategy)
+      : SpSequencerPad<WaitStrategyT>(bufferSize, waitStrategy),
         nextValue_(Sequence::INITIAL_VALUE),
         cachedValue_(Sequence::INITIAL_VALUE) {}
 };
@@ -61,9 +62,8 @@ template <typename WaitStrategyT>
 class SingleProducerSequencer final
     : public detail::SpSequencerFields<WaitStrategyT> {
 public:
-  SingleProducerSequencer(int bufferSize, WaitStrategyT waitStrategy)
-      : detail::SpSequencerFields<WaitStrategyT>(bufferSize,
-                                                 std::move(waitStrategy)),
+  SingleProducerSequencer(int bufferSize, WaitStrategyT &waitStrategy)
+      : detail::SpSequencerFields<WaitStrategyT>(bufferSize, waitStrategy),
         gatingSequencesCache_(nullptr) {}
 
   bool hasAvailableCapacity(int requiredCapacity) {
@@ -136,7 +136,7 @@ public:
   void publish(int64_t sequence) {
     this->cursor_.set(sequence);
     if constexpr (WaitStrategyT::kIsBlockingStrategy) {
-      this->waitStrategy_.signalAllWhenBlocking();
+      this->waitStrategy_->signalAllWhenBlocking();
     }
   }
 
@@ -154,6 +154,14 @@ public:
   int64_t getHighestPublishedSequence(int64_t /*lowerBound*/,
                                       int64_t availableSequence) {
     return availableSequence;
+  }
+
+  std::shared_ptr<ProcessingSequenceBarrier<
+      SingleProducerSequencer<WaitStrategyT>, WaitStrategyT>>
+  newBarrier(Sequence *const *sequencesToTrack, int count) {
+    return std::make_shared<ProcessingSequenceBarrier<
+        SingleProducerSequencer<WaitStrategyT>, WaitStrategyT>>(
+        *this, *this->waitStrategy_, this->cursor_, sequencesToTrack, count);
   }
 
   // Override to invalidate cache when gating sequences change

@@ -3,6 +3,7 @@
 // Source: reference/disruptor/src/main/java/com/lmax/disruptor/RingBuffer.java
 
 #include "BlockingWaitStrategy.h"
+#include "DataProvider.h"
 #include "EventFactory.h"
 #include "EventPoller.h"
 #include "EventTranslator.h"
@@ -29,7 +30,8 @@
 namespace disruptor {
 
 // Template RingBuffer: parameterized by the concrete Sequencer type.
-template <typename E, typename SequencerT> class RingBuffer final {
+template <typename E, typename SequencerT>
+class RingBuffer final : public DataProvider<E> {
 public:
   static constexpr int64_t INITIAL_CURSOR_VALUE = Sequence::INITIAL_VALUE;
   using SequencerType = SequencerT;
@@ -38,23 +40,23 @@ public:
   template <typename WaitStrategyT>
   static std::shared_ptr<RingBuffer<E, MultiProducerSequencer<WaitStrategyT>>>
   createMultiProducer(std::shared_ptr<EventFactory<E>> factory, int bufferSize,
-                      WaitStrategyT waitStrategy) {
+                      WaitStrategyT &waitStrategy) {
     using Seq = MultiProducerSequencer<WaitStrategyT>;
     return std::shared_ptr<RingBuffer<E, Seq>>(new RingBuffer<E, Seq>(
-        std::move(factory), Seq(bufferSize, std::move(waitStrategy))));
+        std::move(factory), Seq(bufferSize, waitStrategy)));
   }
 
   template <typename WaitStrategyT>
   static std::shared_ptr<RingBuffer<E, SingleProducerSequencer<WaitStrategyT>>>
   createSingleProducer(std::shared_ptr<EventFactory<E>> factory, int bufferSize,
-                       WaitStrategyT waitStrategy) {
+                       WaitStrategyT &waitStrategy) {
     using Seq = SingleProducerSequencer<WaitStrategyT>;
     return std::shared_ptr<RingBuffer<E, Seq>>(new RingBuffer<E, Seq>(
-        std::move(factory), Seq(bufferSize, std::move(waitStrategy))));
+        std::move(factory), Seq(bufferSize, waitStrategy)));
   }
 
-  // DataProvider-like
-  E &get(int64_t sequence) { return elementAt(sequence); }
+  // DataProvider
+  E &get(int64_t sequence) override { return elementAt(sequence); }
 
   int64_t getCursor() const { return sequencer_.getCursor(); }
 
@@ -79,9 +81,7 @@ public:
   }
 
   // Java convenience overload: newBarrier() with no dependent sequences.
-  std::shared_ptr<SequenceBarrier> newBarrier() {
-    return newBarrier(nullptr, 0);
-  }
+  auto newBarrier() { return newBarrier(nullptr, 0); }
 
   std::shared_ptr<EventPoller<E, SequencerT>>
   newPoller(Sequence *const *gatingSequences, int count) {

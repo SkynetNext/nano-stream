@@ -3,6 +3,7 @@
 // Source:
 // reference/disruptor/src/main/java/com/lmax/disruptor/AbstractSequencer.java
 
+#include "Cursored.h"
 #include "Sequence.h"
 #include "Sequencer.h"
 #include "WaitStrategy.h"
@@ -10,7 +11,6 @@
 #include "EventPoller.h"
 #include "SequenceGroups.h"
 #include "util/Util.h"
-
 
 #include <cstdint>
 #include <memory>
@@ -20,9 +20,6 @@
 
 namespace disruptor {
 
-template <typename SequencerT, typename WaitStrategyT>
-class ProcessingSequenceBarrier;
-
 template <typename T> class DataProvider;
 template <typename T, typename SequencerT> class EventPoller;
 
@@ -31,10 +28,10 @@ template <typename T, typename SequencerT> class EventPoller;
 // (see SequenceGroups).
 //
 // Template version: WaitStrategy is stored by value and statically dispatched.
-template <typename WaitStrategyT> class AbstractSequencer {
+template <typename WaitStrategyT> class AbstractSequencer : public Cursored {
 public:
-  AbstractSequencer(int bufferSize, WaitStrategyT waitStrategy)
-      : bufferSize_(bufferSize), waitStrategy_(std::move(waitStrategy)),
+  explicit AbstractSequencer(int bufferSize, WaitStrategyT &waitStrategy)
+      : bufferSize_(bufferSize), waitStrategy_(&waitStrategy),
         cursor_(Sequencer::INITIAL_CURSOR_VALUE),
         gatingSequences_(std::make_shared<std::vector<Sequence *>>()) {
     if (bufferSize < 1) {
@@ -45,7 +42,7 @@ public:
     }
   }
 
-  int64_t getCursor() const { return cursor_.get(); }
+  int64_t getCursor() const override { return cursor_.get(); }
   int getBufferSize() const { return bufferSize_; }
 
   void addGatingSequences(Sequence *const *gatingSequences, int count) {
@@ -65,21 +62,9 @@ public:
     return disruptor::util::Util::getMinimumSequence(*snap, cursor_.get());
   }
 
-  std::shared_ptr<ProcessingSequenceBarrier<AbstractSequencer<WaitStrategyT>,
-                                            WaitStrategyT>>
-  newBarrier(Sequence *const *sequencesToTrack, int count);
-
-  template <typename T>
-  std::shared_ptr<EventPoller<T, AbstractSequencer<WaitStrategyT>>>
-  newPoller(DataProvider<T> &dataProvider, Sequence *const *gatingSequences,
-            int count) {
-    // Java: return EventPoller.newInstance(dataProvider, this, new Sequence(),
-    // cursor, gatingSequences);
-    auto pollerSequence = std::make_shared<Sequence>();
-    return EventPoller<T, AbstractSequencer<WaitStrategyT>>::newInstance(
-        dataProvider, *this, std::move(pollerSequence), cursor_,
-        gatingSequences, count);
-  }
+  // NOTE: newBarrier is implemented on concrete sequencers so the barrier is
+  // bound to the concrete Sequencer type (which provides
+  // getHighestPublishedSequence()).
 
   std::string toString() const {
     return std::string("AbstractSequencer{") +
@@ -88,26 +73,9 @@ public:
 
 protected:
   int bufferSize_;
-  WaitStrategyT waitStrategy_;
+  WaitStrategyT *waitStrategy_;
   Sequence cursor_;
   std::atomic<std::shared_ptr<std::vector<Sequence *>>> gatingSequences_;
 };
-
-} // namespace disruptor
-
-// Inline implementations that need ProcessingSequenceBarrier definition.
-#include "ProcessingSequenceBarrier.h"
-
-namespace disruptor {
-
-template <typename WaitStrategyT>
-inline std::shared_ptr<
-    ProcessingSequenceBarrier<AbstractSequencer<WaitStrategyT>, WaitStrategyT>>
-AbstractSequencer<WaitStrategyT>::newBarrier(Sequence *const *sequencesToTrack,
-                                             int count) {
-  return std::make_shared<ProcessingSequenceBarrier<
-      AbstractSequencer<WaitStrategyT>, WaitStrategyT>>(
-      *this, waitStrategy_, cursor_, sequencesToTrack, count);
-}
 
 } // namespace disruptor

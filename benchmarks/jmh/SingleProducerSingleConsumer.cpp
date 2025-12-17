@@ -15,18 +15,21 @@ constexpr int kRingBufferSize = 1 << 20;
 
 // 1:1 with Java JMH class:
 // reference/disruptor/src/jmh/java/com/lmax/disruptor/SingleProducerSingleConsumer.java
-static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) {
+static void
+JMH_SingleProducerSingleConsumer_producing(benchmark::State &state) {
   const auto wait_entries_before =
       disruptor::sp_wrap_wait_entries().load(std::memory_order_relaxed);
   const auto wait_loops_before =
       disruptor::sp_wrap_wait_loops().load(std::memory_order_relaxed);
 
   disruptor::BusySpinWaitStrategy ws;
-  auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
+  auto factory =
+      std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
 
-  auto rb = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
-                                  disruptor::SingleProducerSequencer<disruptor::BusySpinWaitStrategy>>::
-      createSingleProducer(factory, kRingBufferSize, std::move(ws));
+  auto rb = disruptor::RingBuffer<
+      nano_stream::bench::jmh::SimpleEvent,
+      disruptor::SingleProducerSequencer<disruptor::BusySpinWaitStrategy>>::
+      createSingleProducer(factory, kRingBufferSize, ws);
 
   // 1:1 with Java benchmark body:
   //   long sequence = ringBuffer.next();
@@ -35,7 +38,7 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
   //   ringBuffer.publish(sequence);
   for (auto _ : state) {
     const int64_t sequence = rb->next();
-    auto& e = rb->get(sequence);
+    auto &e = rb->get(sequence);
     e.value = 0;
     rb->publish(sequence);
   }
@@ -45,13 +48,17 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
   const auto wait_loops_after =
       disruptor::sp_wrap_wait_loops().load(std::memory_order_relaxed);
 
-  const double entries = static_cast<double>(wait_entries_after - wait_entries_before);
-  const double loops = static_cast<double>(wait_loops_after - wait_loops_before);
+  const double entries =
+      static_cast<double>(wait_entries_after - wait_entries_before);
+  const double loops =
+      static_cast<double>(wait_loops_after - wait_loops_before);
   const double ops = static_cast<double>(state.iterations());
 
   // Raw totals (per repetition) for debugging.
-  state.counters["sp_wrap_wait_entries"] = benchmark::Counter(entries, benchmark::Counter::kAvgThreads);
-  state.counters["sp_wrap_wait_loops"] = benchmark::Counter(loops, benchmark::Counter::kAvgThreads);
+  state.counters["sp_wrap_wait_entries"] =
+      benchmark::Counter(entries, benchmark::Counter::kAvgThreads);
+  state.counters["sp_wrap_wait_loops"] =
+      benchmark::Counter(loops, benchmark::Counter::kAvgThreads);
 
   // Per-operation rates (more interpretable than raw counts).
   if (ops > 0) {
@@ -60,13 +67,11 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
     state.counters["sp_wrap_wait_loops_per_op"] =
         benchmark::Counter(loops / ops, benchmark::Counter::kAvgThreads);
   }
-
 }
 
-static auto* bm_JMH_SingleProducerSingleConsumer_producing = [] {
-  auto* b = benchmark::RegisterBenchmark("JMH_SingleProducerSingleConsumer_producing",
-                                         &JMH_SingleProducerSingleConsumer_producing);
+static auto *bm_JMH_SingleProducerSingleConsumer_producing = [] {
+  auto *b =
+      benchmark::RegisterBenchmark("JMH_SingleProducerSingleConsumer_producing",
+                                   &JMH_SingleProducerSingleConsumer_producing);
   return nano_stream::bench::jmh::applyJmhDefaults(b);
 }();
-
-

@@ -69,18 +69,27 @@ public:
   using BarrierT = typename BarrierPtr::element_type;
 
   Disruptor(std::shared_ptr<EventFactory<T>> eventFactory, int ringBufferSize,
-            ThreadFactory &threadFactory, WaitStrategyT waitStrategy)
-      : Disruptor(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
-                                  std::move(waitStrategy)),
-                  threadFactory) {}
+            ThreadFactory &threadFactory)
+      : ownedWaitStrategy_(),
+        ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
+                                    ownedWaitStrategy_)),
+        threadFactory_(threadFactory), consumerRepository_(), started_(false),
+        exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
+
+  Disruptor(std::shared_ptr<EventFactory<T>> eventFactory, int ringBufferSize,
+            ThreadFactory &threadFactory, WaitStrategyT &waitStrategy)
+      : ownedWaitStrategy_(waitStrategy),
+        ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
+                                    ownedWaitStrategy_)),
+        threadFactory_(threadFactory), consumerRepository_(), started_(false),
+        exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
 
 private:
   static std::shared_ptr<RingBufferT>
   makeRingBuffer_(std::shared_ptr<EventFactory<T>> factory, int ringBufferSize,
-                  WaitStrategyT waitStrategy) {
-    return std::shared_ptr<RingBufferT>(
-        new RingBufferT(std::move(factory),
-                        SequencerT(ringBufferSize, std::move(waitStrategy))));
+                  WaitStrategyT &waitStrategy) {
+    return std::shared_ptr<RingBufferT>(new RingBufferT(
+        std::move(factory), SequencerT(ringBufferSize, waitStrategy)));
   }
 
 public:
@@ -242,17 +251,13 @@ private:
     ownedBarriers_.push_back(barrier);
   }
 
-  explicit Disruptor(std::shared_ptr<RingBufferT> ringBuffer,
-                     ThreadFactory &threadFactory)
-      : ringBuffer_(std::move(ringBuffer)), threadFactory_(threadFactory),
-        consumerRepository_(), started_(false),
-        exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
-
   std::shared_ptr<RingBufferT> ringBuffer_;
   ThreadFactory &threadFactory_;
   ConsumerRepository<BarrierPtr> consumerRepository_;
   std::atomic<bool> started_;
   ExceptionHandler<T> *exceptionHandler_;
+  // Owning wait strategy storage so non-movable strategies (mutex/cv) work.
+  WaitStrategyT ownedWaitStrategy_;
   // Hold SequenceBarriers created by the DSL to ensure they outlive processors
   // that reference them.
   std::vector<BarrierPtr> ownedBarriers_;
