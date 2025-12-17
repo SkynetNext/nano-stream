@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -247,7 +248,8 @@ public:
         entries_(
             static_cast<size_t>(sequencer.getBufferSize() + 2 * BUFFER_PAD)),
         bufferSize_(sequencer.getBufferSize()),
-        sequencerValue_(std::move(sequencer)), usingValue_(true) {
+        sequencerValue_(std::move(sequencer)), sequencerOwner_(nullptr),
+        usingValue_(true) {
     if (!eventFactory) {
       throw std::invalid_argument("eventFactory must not be null");
     }
@@ -267,9 +269,8 @@ public:
       : indexMask_(sequencer->getBufferSize() - 1),
         entries_(
             static_cast<size_t>(sequencer->getBufferSize() + 2 * BUFFER_PAD)),
-        bufferSize_(sequencer->getBufferSize()),
-        sequencerOwner_(std::move(sequencer)),
-        sequencerPtr_(sequencerOwner_.get()), usingValue_(false) {
+        bufferSize_(sequencer->getBufferSize()), sequencerValue_(std::nullopt),
+        sequencerOwner_(std::move(sequencer)), usingValue_(false) {
     if (!eventFactory) {
       throw std::invalid_argument("eventFactory must not be null");
     }
@@ -305,21 +306,17 @@ private:
   int64_t indexMask_;
   std::vector<E> entries_;
   int bufferSize_;
-  // For value-based constructor: sequencer_ is stored by value.
-  // For unique_ptr-based constructor: sequencerOwner_ holds the sequencer,
-  // sequencer_ points to it.
+  // For value-based constructor: sequencer_ is stored by value in optional.
+  // For unique_ptr-based constructor: sequencerOwner_ holds the sequencer.
+  std::optional<SequencerT> sequencerValue_;
   std::unique_ptr<SequencerT> sequencerOwner_;
-  union {
-    SequencerT sequencerValue_;
-    SequencerT *sequencerPtr_;
-  };
   bool usingValue_;
 
   SequencerT &sequencer() {
-    return usingValue_ ? sequencerValue_ : *sequencerPtr_;
+    return usingValue_ ? *sequencerValue_ : *sequencerOwner_;
   }
   const SequencerT &sequencer() const {
-    return usingValue_ ? sequencerValue_ : *sequencerPtr_;
+    return usingValue_ ? *sequencerValue_ : *sequencerOwner_;
   }
 };
 
