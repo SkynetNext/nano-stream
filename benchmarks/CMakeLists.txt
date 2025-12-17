@@ -29,6 +29,14 @@ target_link_libraries(nano_stream_benchmarks
         benchmark::benchmark
 )
 
+# TSF4G tbus reference (Linux-only, SysV headers). Used by JMH_TBusSingleProducerSingleConsumer_producing.
+if (UNIX AND NOT APPLE)
+    if (EXISTS ${CMAKE_SOURCE_DIR}/reference/tsf4g/tbus/CMakeLists.txt)
+        add_subdirectory(${CMAKE_SOURCE_DIR}/reference/tsf4g/tbus ${CMAKE_BINARY_DIR}/tsf4g-tbus-build EXCLUDE_FROM_ALL)
+        target_link_libraries(nano_stream_benchmarks PRIVATE tsf4g_tbus)
+    endif()
+endif()
+
 target_include_directories(nano_stream_benchmarks
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
