@@ -18,6 +18,7 @@ add_executable(nano_stream_benchmarks
     benchmark_sequence.cpp
     benchmark_ring_buffer.cpp
     benchmark_comparison.cpp
+    benchmark_typical.cpp
     benchmark_main.cpp
 )
 

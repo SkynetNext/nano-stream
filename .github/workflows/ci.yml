@@ -124,7 +124,8 @@ jobs:
           ./benchmarks/nano_stream_benchmarks \
             --benchmark_format=json \
             --benchmark_out=../benchmark_cpp.json \
-            --benchmark_min_time=1.0
+            --benchmark_min_time=1.0 \
+            --benchmark_filter=Typical_.*
           cd ..
           echo "C++ benchmark file location: $(pwd)/benchmark_cpp.json"
           ls -lh benchmark_cpp.json
