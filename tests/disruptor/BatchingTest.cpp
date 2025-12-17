@@ -52,11 +52,11 @@ class BatchingTestFixture : public ::testing::TestWithParam<disruptor::dsl::Prod
 TEST_P(BatchingTestFixture, shouldBatch) {
   const auto producerType = GetParam();
 
-  auto waitStrategy = std::make_shared<disruptor::SleepingWaitStrategy>();
+  auto waitStrategy = std::make_unique<disruptor::SleepingWaitStrategy>();
   auto& threadFactory = disruptor::util::DaemonThreadFactory::INSTANCE();
 
   disruptor::dsl::Disruptor<disruptor::support::LongEvent> d(
-      disruptor::support::LongEvent::FACTORY, 2048, threadFactory, producerType, waitStrategy);
+      disruptor::support::LongEvent::FACTORY, 2048, threadFactory, producerType, std::move(waitStrategy));
 
   ParallelEventHandler handler1(1, 0);
   ParallelEventHandler handler2(1, 1);

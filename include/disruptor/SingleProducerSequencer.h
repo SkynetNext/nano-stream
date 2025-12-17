@@ -37,14 +37,14 @@ namespace detail {
 // 112 bytes of padding (same shape as Java p10..p77).
 struct SpSequencerPad : public AbstractSequencer {
   std::byte p1[112]{};
-  SpSequencerPad(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+  SpSequencerPad(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
       : AbstractSequencer(bufferSize, std::move(waitStrategy)) {}
 };
 
 struct SpSequencerFields : public SpSequencerPad {
   int64_t nextValue_;
   int64_t cachedValue_;
-  SpSequencerFields(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+  SpSequencerFields(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
       : SpSequencerPad(bufferSize, std::move(waitStrategy)),
         nextValue_(Sequence::INITIAL_VALUE),
         cachedValue_(Sequence::INITIAL_VALUE) {}
@@ -54,7 +54,7 @@ struct SpSequencerFields : public SpSequencerPad {
 
 class SingleProducerSequencer final : public detail::SpSequencerFields {
 public:
-  SingleProducerSequencer(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+  SingleProducerSequencer(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
       : detail::SpSequencerFields(bufferSize, std::move(waitStrategy)) {}
 
   bool hasAvailableCapacity(int requiredCapacity) override { return hasAvailableCapacity(requiredCapacity, false); }
@@ -123,7 +123,9 @@ public:
 
   void publish(int64_t sequence) override {
     cursor_.set(sequence);
-    waitStrategy_->signalAllWhenBlocking();
+    if (signalOnPublish_) {
+      waitStrategy_->signalAllWhenBlocking();
+    }
   }
 
   void publish(int64_t lo, int64_t hi) override { publish(hi); }

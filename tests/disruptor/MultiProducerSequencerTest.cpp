@@ -4,8 +4,8 @@
 #include "disruptor/MultiProducerSequencer.h"
 
 TEST(MultiProducerSequencerTest, shouldOnlyAllowMessagesToBeAvailableIfSpecificallyPublished) {
-  auto ws = std::make_shared<disruptor::BlockingWaitStrategy>();
-  disruptor::MultiProducerSequencer publisher(1024, ws);
+  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
+  disruptor::MultiProducerSequencer publisher(1024, std::move(ws));
 
   publisher.publish(3);
   publisher.publish(5);

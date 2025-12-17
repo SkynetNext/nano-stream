@@ -42,8 +42,8 @@ public:
 
 TEST(DisruptorStressTest, shouldHandleLotsOfThreads_smoke) {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_shared<disruptor::BusySpinWaitStrategy>();
-  disruptor::dsl::Disruptor<TestEvent> d(TestEvent::FACTORY, 1 << 12, tf, disruptor::dsl::ProducerType::MULTI, ws);
+  auto ws = std::make_unique<disruptor::BusySpinWaitStrategy>();
+  disruptor::dsl::Disruptor<TestEvent> d(TestEvent::FACTORY, 1 << 12, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
 
   disruptor::FatalExceptionHandler<TestEvent> fatal;
   d.setDefaultExceptionHandler(fatal);

@@ -52,6 +52,8 @@ public:
     }
   }
 
+  bool isBlockingStrategy() const noexcept override { return true; }
+
 private:
   std::mutex mutex_;
   std::condition_variable cv_;

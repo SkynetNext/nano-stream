@@ -28,9 +28,11 @@ template <typename T> class EventPoller;
 // C++ port uses an atomic shared_ptr snapshot updated via CAS (see SequenceGroups).
 class AbstractSequencer : public Sequencer {
 public:
-  AbstractSequencer(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+  AbstractSequencer(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
       : bufferSize_(bufferSize),
-        waitStrategy_(std::move(waitStrategy)),
+        waitStrategyOwner_(std::move(waitStrategy)),
+        waitStrategy_(waitStrategyOwner_.get()),
+        signalOnPublish_(waitStrategy_ ? waitStrategy_->isBlockingStrategy() : true),
         cursor_(Sequencer::INITIAL_CURSOR_VALUE),
         gatingSequences_(std::make_shared<std::vector<Sequence*>>()) {
     if (bufferSize < 1) {
@@ -75,7 +77,9 @@ public:
 
 protected:
   int bufferSize_;
-  std::shared_ptr<WaitStrategy> waitStrategy_;
+  std::unique_ptr<WaitStrategy> waitStrategyOwner_;
+  WaitStrategy* waitStrategy_;
+  bool signalOnPublish_;
   Sequence cursor_;
   std::atomic<std::shared_ptr<std::vector<Sequence*>>> gatingSequences_;
 };

@@ -60,27 +60,31 @@ private:
 } // namespace
 
 TEST(RingBufferWithAssertingStubTest, shouldDelegateNextAndPublish) {
-  auto sequencer = std::make_shared<AssertingSequencer>(16);
-  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(disruptor::support::StubEvent::EVENT_FACTORY, sequencer);
+  auto sequencer = std::make_unique<AssertingSequencer>(16);
+  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(
+      disruptor::support::StubEvent::EVENT_FACTORY, std::move(sequencer));
   ringBuffer->publish(ringBuffer->next());
 }
 
 TEST(RingBufferWithAssertingStubTest, shouldDelegateTryNextAndPublish) {
-  auto sequencer = std::make_shared<AssertingSequencer>(16);
-  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(disruptor::support::StubEvent::EVENT_FACTORY, sequencer);
+  auto sequencer = std::make_unique<AssertingSequencer>(16);
+  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(
+      disruptor::support::StubEvent::EVENT_FACTORY, std::move(sequencer));
   ringBuffer->publish(ringBuffer->tryNext());
 }
 
 TEST(RingBufferWithAssertingStubTest, shouldDelegateNextNAndPublish) {
-  auto sequencer = std::make_shared<AssertingSequencer>(16);
-  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(disruptor::support::StubEvent::EVENT_FACTORY, sequencer);
+  auto sequencer = std::make_unique<AssertingSequencer>(16);
+  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(
+      disruptor::support::StubEvent::EVENT_FACTORY, std::move(sequencer));
   int64_t hi = ringBuffer->next(10);
   ringBuffer->publish(hi - 9, hi);
 }
 
 TEST(RingBufferWithAssertingStubTest, shouldDelegateTryNextNAndPublish) {
-  auto sequencer = std::make_shared<AssertingSequencer>(16);
-  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(disruptor::support::StubEvent::EVENT_FACTORY, sequencer);
+  auto sequencer = std::make_unique<AssertingSequencer>(16);
+  auto ringBuffer = std::make_shared<disruptor::RingBuffer<disruptor::support::StubEvent>>(
+      disruptor::support::StubEvent::EVENT_FACTORY, std::move(sequencer));
   int64_t hi = ringBuffer->tryNext(10);
   ringBuffer->publish(hi - 9, hi);
 }

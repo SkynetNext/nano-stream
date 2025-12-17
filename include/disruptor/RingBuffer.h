@@ -39,30 +39,30 @@ public:
   // Factory methods
   static std::shared_ptr<RingBuffer<E>> createMultiProducer(std::shared_ptr<EventFactory<E>> factory,
                                                             int bufferSize,
-                                                            std::shared_ptr<WaitStrategy> waitStrategy) {
-    auto sequencer = std::make_shared<MultiProducerSequencer>(bufferSize, std::move(waitStrategy));
+                                                            std::unique_ptr<WaitStrategy> waitStrategy) {
+    auto sequencer = std::make_unique<MultiProducerSequencer>(bufferSize, std::move(waitStrategy));
     return std::shared_ptr<RingBuffer<E>>(new RingBuffer<E>(std::move(factory), std::move(sequencer)));
   }
 
   static std::shared_ptr<RingBuffer<E>> createMultiProducer(std::shared_ptr<EventFactory<E>> factory, int bufferSize) {
-    return createMultiProducer(std::move(factory), bufferSize, std::make_shared<BlockingWaitStrategy>());
+    return createMultiProducer(std::move(factory), bufferSize, std::make_unique<BlockingWaitStrategy>());
   }
 
   static std::shared_ptr<RingBuffer<E>> createSingleProducer(std::shared_ptr<EventFactory<E>> factory,
                                                              int bufferSize,
-                                                             std::shared_ptr<WaitStrategy> waitStrategy) {
-    auto sequencer = std::make_shared<SingleProducerSequencer>(bufferSize, std::move(waitStrategy));
+                                                             std::unique_ptr<WaitStrategy> waitStrategy) {
+    auto sequencer = std::make_unique<SingleProducerSequencer>(bufferSize, std::move(waitStrategy));
     return std::shared_ptr<RingBuffer<E>>(new RingBuffer<E>(std::move(factory), std::move(sequencer)));
   }
 
   static std::shared_ptr<RingBuffer<E>> createSingleProducer(std::shared_ptr<EventFactory<E>> factory, int bufferSize) {
-    return createSingleProducer(std::move(factory), bufferSize, std::make_shared<BlockingWaitStrategy>());
+    return createSingleProducer(std::move(factory), bufferSize, std::make_unique<BlockingWaitStrategy>());
   }
 
   static std::shared_ptr<RingBuffer<E>> create(disruptor::dsl::ProducerType producerType,
                                                std::shared_ptr<EventFactory<E>> factory,
                                                int bufferSize,
-                                               std::shared_ptr<WaitStrategy> waitStrategy) {
+                                               std::unique_ptr<WaitStrategy> waitStrategy) {
     switch (producerType) {
       case disruptor::dsl::ProducerType::SINGLE:
         return createSingleProducer(std::move(factory), bufferSize, std::move(waitStrategy));
@@ -109,7 +109,7 @@ public:
   std::shared_ptr<EventPoller<E>> newPoller(Sequence* const* gatingSequences, int count) {
     // Sequencer::newPoller is a Java generic API; in C++ the real implementation lives in AbstractSequencer.
     // Calling through Sequencer base would hit the placeholder template and return nullptr.
-    auto* abstractSequencer = dynamic_cast<AbstractSequencer*>(sequencer_.get());
+    auto* abstractSequencer = dynamic_cast<AbstractSequencer*>(sequencer_);
     if (abstractSequencer == nullptr) {
       throw std::runtime_error("Sequencer does not support newPoller (not an AbstractSequencer)");
     }
@@ -247,11 +247,12 @@ public:
 
   // Java exposes a public constructor RingBuffer(EventFactory, Sequencer). This is required by some tests
   // (e.g. RingBufferWithAssertingStubTest) that inject custom Sequencer implementations.
-  RingBuffer(std::shared_ptr<EventFactory<E>> eventFactory, std::shared_ptr<Sequencer> sequencer)
+  RingBuffer(std::shared_ptr<EventFactory<E>> eventFactory, std::unique_ptr<Sequencer> sequencer)
       : indexMask_(sequencer->getBufferSize() - 1),
         entries_(static_cast<size_t>(sequencer->getBufferSize() + 2 * BUFFER_PAD)),
         bufferSize_(sequencer->getBufferSize()),
-        sequencer_(std::move(sequencer)) {
+        sequencerOwner_(std::move(sequencer)),
+        sequencer_(sequencerOwner_.get()) {
     if (!eventFactory) {
       throw std::invalid_argument("eventFactory must not be null");
     }
@@ -283,7 +284,8 @@ private:
   int64_t indexMask_;
   std::vector<E> entries_;
   int bufferSize_;
-  std::shared_ptr<Sequencer> sequencer_;
+  std::unique_ptr<Sequencer> sequencerOwner_;
+  Sequencer* sequencer_;
 };
 
 } // namespace disruptor

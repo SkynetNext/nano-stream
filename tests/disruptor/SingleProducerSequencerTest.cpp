@@ -4,8 +4,8 @@
 #include "disruptor/SingleProducerSequencer.h"
 
 TEST(SingleProducerSequencerTest, shouldNotUpdateCursorDuringHasAvailableCapacity) {
-  auto waitStrategy = std::make_shared<disruptor::BusySpinWaitStrategy>();
-  disruptor::SingleProducerSequencer sequencer(16, waitStrategy);
+  auto waitStrategy = std::make_unique<disruptor::BusySpinWaitStrategy>();
+  disruptor::SingleProducerSequencer sequencer(16, std::move(waitStrategy));
 
   for (int i = 0; i < 32; ++i) {
     const int64_t next = sequencer.next();

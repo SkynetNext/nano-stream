@@ -63,7 +63,7 @@ public:
             int ringBufferSize,
             ThreadFactory& threadFactory,
             ProducerType producerType,
-            std::shared_ptr<WaitStrategy> waitStrategy)
+            std::unique_ptr<WaitStrategy> waitStrategy)
       : Disruptor(RingBuffer<T>::create(producerType, std::move(eventFactory), ringBufferSize, std::move(waitStrategy)),
                   threadFactory) {}
 

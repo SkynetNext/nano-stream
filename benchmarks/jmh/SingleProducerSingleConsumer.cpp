@@ -25,11 +25,11 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
       disruptor::sp_wrap_wait_loops().load(std::memory_order_relaxed);
 
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_shared<disruptor::BusySpinWaitStrategy>();
+  auto ws = std::make_unique<disruptor::BusySpinWaitStrategy>();
   auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
 
   disruptor::dsl::Disruptor<nano_stream::bench::jmh::SimpleEvent> d(
-      factory, kRingBufferSize, tf, disruptor::dsl::ProducerType::SINGLE, ws);
+      factory, kRingBufferSize, tf, disruptor::dsl::ProducerType::SINGLE, std::move(ws));
   nano_stream::bench::jmh::ConsumeHandler handler;
   d.handleEventsWith(handler);
   auto rb = d.start();

@@ -44,9 +44,9 @@ private:
 } // namespace
 
 int main() {
-  auto ws = std::make_shared<disruptor::BlockingWaitStrategy>();
+  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
   auto rb = disruptor::RingBuffer<disruptor_examples::support::LongEvent>::createSingleProducer(
-      disruptor_examples::support::LongEvent::FACTORY, 1024, ws);
+      disruptor_examples::support::LongEvent::FACTORY, 1024, std::move(ws));
 
   auto barrier = rb->newBarrier();
   EarlyReleaseHandler handler;

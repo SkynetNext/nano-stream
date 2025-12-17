@@ -21,6 +21,7 @@ public:
   }
 
   void signalAllWhenBlocking() override { ++signalAllWhenBlockingCalls; }
+  bool isBlockingStrategy() const noexcept override { return true; }
 };
 
 } // namespace disruptor::support

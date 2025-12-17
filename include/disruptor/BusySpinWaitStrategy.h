@@ -29,6 +29,7 @@ public:
   }
 
   void signalAllWhenBlocking() override {}
+  bool isBlockingStrategy() const noexcept override { return false; }
 };
 
 } // namespace disruptor

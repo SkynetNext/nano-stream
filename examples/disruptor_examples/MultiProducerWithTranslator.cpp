@@ -57,10 +57,10 @@ constexpr int kRingSize = 1024;
 
 int main() {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_shared<disruptor::BlockingWaitStrategy>();
+  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
 
   disruptor::dsl::Disruptor<ObjectBox> disruptor(
-      ObjectBox::FACTORY, kRingSize, tf, disruptor::dsl::ProducerType::MULTI, ws);
+      ObjectBox::FACTORY, kRingSize, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
 
   Consumer c1;
   Consumer c2;

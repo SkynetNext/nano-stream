@@ -22,8 +22,8 @@ private:
 
 TEST(EventPollerTest, shouldPollForEvents) {
   disruptor::Sequence gatingSequence;
-  auto waitStrategy = std::make_shared<disruptor::BusySpinWaitStrategy>();
-  disruptor::SingleProducerSequencer sequencer(16, waitStrategy);
+  auto waitStrategy = std::make_unique<disruptor::BusySpinWaitStrategy>();
+  disruptor::SingleProducerSequencer sequencer(16, std::move(waitStrategy));
 
   std::array<void*, 16> data{};
   // DataProvider<Object> provider = sequence -> data[(int) sequence];
@@ -71,7 +71,7 @@ TEST(EventPollerTest, shouldSuccessfullyPollWhenBufferIsFull) {
   };
 
   auto ringBuffer = disruptor::RingBuffer<std::array<uint8_t, 1>>::createMultiProducer(
-      std::make_shared<Factory>(), 4, std::make_shared<disruptor::SleepingWaitStrategy>());
+      std::make_shared<Factory>(), 4, std::make_unique<disruptor::SleepingWaitStrategy>());
 
   auto poller = ringBuffer->newPoller();
   ringBuffer->addGatingSequences(poller->getSequence());

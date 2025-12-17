@@ -20,27 +20,27 @@ class PhasedBackoffWaitStrategy final : public WaitStrategy {
 public:
   PhasedBackoffWaitStrategy(int64_t spinTimeoutNanos,
                             int64_t yieldTimeoutNanos,
-                            std::shared_ptr<WaitStrategy> fallbackStrategy)
+                            std::unique_ptr<WaitStrategy> fallbackStrategy)
       : spinTimeoutNanos_(spinTimeoutNanos),
         yieldTimeoutNanos_(spinTimeoutNanos + yieldTimeoutNanos),
         fallbackStrategy_(std::move(fallbackStrategy)) {}
 
-  static std::shared_ptr<PhasedBackoffWaitStrategy> withLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
-    return std::make_shared<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
+  static std::unique_ptr<PhasedBackoffWaitStrategy> withLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
+    return std::make_unique<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
                                                        yieldTimeoutNanos,
-                                                       std::make_shared<BlockingWaitStrategy>());
+                                                       std::make_unique<BlockingWaitStrategy>());
   }
 
-  static std::shared_ptr<PhasedBackoffWaitStrategy> withLiteLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
-    return std::make_shared<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
+  static std::unique_ptr<PhasedBackoffWaitStrategy> withLiteLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
+    return std::make_unique<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
                                                        yieldTimeoutNanos,
-                                                       std::make_shared<LiteBlockingWaitStrategy>());
+                                                       std::make_unique<LiteBlockingWaitStrategy>());
   }
 
-  static std::shared_ptr<PhasedBackoffWaitStrategy> withSleep(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
-    return std::make_shared<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
+  static std::unique_ptr<PhasedBackoffWaitStrategy> withSleep(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
+    return std::make_unique<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
                                                        yieldTimeoutNanos,
-                                                       std::make_shared<SleepingWaitStrategy>(0));
+                                                       std::make_unique<SleepingWaitStrategy>(0));
   }
 
   int64_t waitFor(int64_t sequence,
@@ -73,12 +73,13 @@ public:
   }
 
   void signalAllWhenBlocking() override { fallbackStrategy_->signalAllWhenBlocking(); }
+  bool isBlockingStrategy() const noexcept override { return fallbackStrategy_->isBlockingStrategy(); }
 
 private:
   static constexpr int SPIN_TRIES = 10000;
   int64_t spinTimeoutNanos_;
   int64_t yieldTimeoutNanos_;
-  std::shared_ptr<WaitStrategy> fallbackStrategy_;
+  std::unique_ptr<WaitStrategy> fallbackStrategy_;
 
   static int64_t nowNanos() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(

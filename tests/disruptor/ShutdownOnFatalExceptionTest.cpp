@@ -43,11 +43,11 @@ TEST(ShutdownOnFatalExceptionTest, shouldShutdownGracefulEvenWithFatalExceptionH
   std::uniform_int_distribution<int> dist(0, 255);
 
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_shared<disruptor::BlockingWaitStrategy>();
+  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
   FailingEventHandler handler;
 
   disruptor::dsl::Disruptor<std::vector<uint8_t>> d(
-      std::make_shared<ByteArrayFactory>(256), 1024, tf, disruptor::dsl::ProducerType::SINGLE, ws);
+      std::make_shared<ByteArrayFactory>(256), 1024, tf, disruptor::dsl::ProducerType::SINGLE, std::move(ws));
   d.handleEventsWith(handler);
 
   disruptor::FatalExceptionHandler<std::vector<uint8_t>> fatal;

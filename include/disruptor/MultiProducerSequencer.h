@@ -18,7 +18,7 @@ namespace disruptor {
 
 class MultiProducerSequencer final : public AbstractSequencer {
 public:
-  MultiProducerSequencer(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+  MultiProducerSequencer(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
       : AbstractSequencer(bufferSize, std::move(waitStrategy)),
         gatingSequenceCache_(Sequencer::INITIAL_CURSOR_VALUE),
         availableBuffer_(static_cast<size_t>(bufferSize)),
@@ -90,14 +90,18 @@ public:
 
   void publish(int64_t sequence) override {
     setAvailable(sequence);
-    waitStrategy_->signalAllWhenBlocking();
+    if (signalOnPublish_) {
+      waitStrategy_->signalAllWhenBlocking();
+    }
   }
 
   void publish(int64_t lo, int64_t hi) override {
     for (int64_t l = lo; l <= hi; ++l) {
       setAvailable(l);
     }
-    waitStrategy_->signalAllWhenBlocking();
+    if (signalOnPublish_) {
+      waitStrategy_->signalAllWhenBlocking();
+    }
   }
 
   bool isAvailable(int64_t sequence) override {

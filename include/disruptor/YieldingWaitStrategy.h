@@ -27,6 +27,7 @@ public:
   }
 
   void signalAllWhenBlocking() override {}
+  bool isBlockingStrategy() const noexcept override { return false; }
 
 private:
   static constexpr int SPIN_TRIES = 100;
