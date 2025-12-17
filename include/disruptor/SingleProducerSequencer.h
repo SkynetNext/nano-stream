@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <cstddef>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
@@ -28,13 +29,33 @@ inline std::atomic<uint64_t>& sp_wrap_wait_loops() {
   return v;
 }
 
-// Java has padding superclasses; we keep minimal padding hints.
-class SingleProducerSequencer final : public AbstractSequencer {
-public:
-  SingleProducerSequencer(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
-      : AbstractSequencer(bufferSize, std::move(waitStrategy)),
+// Java reference (padding intent):
+//   reference/disruptor/src/main/java/com/lmax/disruptor/SingleProducerSequencer.java
+// Java uses padding superclasses to reduce false sharing around sequencer hot fields.
+namespace detail {
+
+// 112 bytes of padding (same shape as Java p10..p77).
+struct SpSequencerPad : public AbstractSequencer {
+  std::byte p1[112]{};
+  SpSequencerPad(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+      : AbstractSequencer(bufferSize, std::move(waitStrategy)) {}
+};
+
+struct SpSequencerFields : public SpSequencerPad {
+  int64_t nextValue_;
+  int64_t cachedValue_;
+  SpSequencerFields(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+      : SpSequencerPad(bufferSize, std::move(waitStrategy)),
         nextValue_(Sequence::INITIAL_VALUE),
         cachedValue_(Sequence::INITIAL_VALUE) {}
+};
+
+} // namespace detail
+
+class SingleProducerSequencer final : public detail::SpSequencerFields {
+public:
+  SingleProducerSequencer(int bufferSize, std::shared_ptr<WaitStrategy> waitStrategy)
+      : detail::SpSequencerFields(bufferSize, std::move(waitStrategy)) {}
 
   bool hasAvailableCapacity(int requiredCapacity) override { return hasAvailableCapacity(requiredCapacity, false); }
 
@@ -117,8 +138,8 @@ public:
   }
 
 private:
-  int64_t nextValue_;
-  int64_t cachedValue_;
+  // Trailing padding to mirror Java's extra padding in the concrete class.
+  std::byte p2_[112]{};
 
   bool hasAvailableCapacity(int requiredCapacity, bool doStore) {
     int64_t nextValue = nextValue_;

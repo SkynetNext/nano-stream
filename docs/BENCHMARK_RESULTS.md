@@ -1,91 +1,87 @@
-# Nano-Stream Benchmark Results
+# Benchmark Results (JMH-aligned Disruptor comparison)
 
-Generated on: **2025-08-29T01:10:41+08:00**  
-Platform: **Intel 4-core 3.6GHz CPU**  
-Compiler: **Clang 19.1.1**  
-Build: **Release (-O3)**
+This repository contains a **1:1 C++ port of LMAX Disruptor** plus **aligned benchmarks** so we can compare:
 
-## 📊 Complete Benchmark Results
+- **C++ (Google Benchmark)**: `benchmarks/jmh/**` (benchmarks are named `JMH_*`)
+- **Java (JMH)**: `reference/disruptor/src/jmh/java/**`
 
-### 🧮 **Sequence Operations**
-| Operation | Time | Throughput | Notes |
-|-----------|------|------------|-------|
-| `Sequence::get()` | 0.512 ns | 2.0B ops/sec | Ultra-fast read |
-| `Sequence::set()` | 0.256 ns | 3.9B ops/sec | Cache-line optimized |
-| `Sequence::increment_and_get()` | 6.46 ns | 155M ops/sec | Atomic operation |
-| `Sequence::compare_and_set()` | 4.59 ns | 218M ops/sec | Lock-free CAS |
+The numbers below are taken from:
 
-### 🔄 **Concurrent Sequence Operations**
-| Threads | Sequence | std::atomic | Overhead |
-|---------|----------|-------------|----------|
-| 1 thread | 4.59 ns | 4.62 ns | Negligible |
-| 2 threads | 27.5 ns | 25.1 ns | +9.6% |
-| 4 threads | 52.8 ns | 47.0 ns | +12.3% |
+- `benchmark_cpp.json` (Google Benchmark JSON, aggregates)
+- `benchmark_java.json` (JMH JSON)
 
-### 🚀 **Ring Buffer Core Performance**
-| Operation | Buffer Size | Time | Throughput |
-|-----------|-------------|------|------------|
-| Single Producer | 1024 | 3.71 ns | **278M ops/sec** |
-| Single Producer | 4096 | 3.80 ns | **260M ops/sec** |
-| Single Producer | 16384 | 4.15 ns | **241M ops/sec** |
-| Try Next | - | 10.4 ns | **97M ops/sec** |
+## How to run (same parameters as CI)
 
-### 📦 **Batch Processing Performance**
-| Batch Size | Time per Item | Throughput | Efficiency |
-|------------|---------------|------------|------------|
-| 1 item | 4.20 ns | 241M items/sec | Baseline |
-| 8 items | 1.79 ns | **566M items/sec** | **+134%** |
-| 64 items | 1.51 ns | **665M items/sec** | **+175%** |
+### C++ (Google Benchmark)
 
-### 🎯 **Memory Access Patterns**
-| Pattern | Time | Throughput | Cache Efficiency |
-|---------|------|------------|------------------|
-| Sequential Access | 0.739 ns | **1.40B ops/sec** | Optimal |
-| Random Access | 2.80 ns | **354M ops/sec** | Good |
-| Memory Access Test | 0.738 ns | **1.40B ops/sec** | Cache-friendly |
+```powershell
+cd F:\nano-stream\build
+.\benchmarks\nano_stream_benchmarks.exe --benchmark_filter='^JMH_' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true --benchmark_out=..\benchmark_cpp.json --benchmark_out_format=json
+```
 
-### 🏆 **Producer-Consumer Comparison**
-| Scenario | Nano-Stream | std::queue | Performance Gain |
-|----------|-------------|------------|------------------|
-| **1,000 items** | **17.3M items/sec** | 14.9M items/sec | **+16.1%** |
-| **10,000 items** | **20.8M items/sec** | 15.9M items/sec | **+30.8%** |
-| **Single Producer-Consumer** | **21.3M items/sec** | - | Optimized |
+### Java (JMH, via jmhJar)
 
-### ⚡ **Single-Threaded Throughput**
-| Implementation | Throughput | Latency per Op | Advantage |
-|----------------|------------|----------------|-----------|
-| **Nano-Stream** | **326M ops/sec** | **3.16 ns** | **+72.7%** |
-| std::queue | 189M ops/sec | 6.92 ns | Baseline |
+```bash
+cd /f/nano-stream/reference/disruptor
+./gradlew jmhJar --no-daemon
+java -jar build/libs/*-jmh.jar -rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 2 -w 5s -i 3 -r 5s ".*(SingleProducerSingleConsumer|MultiProducerSingleConsumer|BlockingQueueBenchmark).*"
+```
 
-### 🎪 **Low-Latency Operations**
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Low-Latency Mode | 10.6 ns / 106M ops/sec | Optimized for HFT |
-| Memory Access | 0.738 ns / 1.4B ops/sec | Cache-line aligned |
+### Generate report
 
-## 🚀 **Key Performance Insights**
+```bash
+bash scripts/compare_benchmarks.sh > comparison_report.md
+```
 
-### ✅ **Strengths**
-1. **Sub-nanosecond operations**: Core sequence operations in 0.26-0.51 ns
-2. **Excellent batching**: 665M items/sec with 64-item batches (+175% efficiency)
-3. **Cache-friendly**: Sequential access at 1.4B ops/sec
-4. **Lock-free advantage**: Minimal overhead in concurrent scenarios
-5. **Consistent performance**: Stable across different buffer sizes
+## Results summary (from the provided JSON)
 
-### 📈 **Scaling Characteristics**
-- **Linear batch scaling**: Performance improves proportionally with batch size
-- **Thread contention**: Well-controlled overhead in multi-threaded scenarios
-- **Memory efficiency**: Zero allocations during operation
-- **Cache optimization**: Proper alignment prevents false sharing
+> Note on units:
+> - C++ aggregate `real_time` is **ns/op** (for these benchmarks). Convert to ops/s via \( \text{ops/s} = 10^9 / \text{ns/op} \).
+> - For multi-threaded C++ benchmarks, Google Benchmark reports **time per operation per thread**; total throughput is roughly \( \text{threads} \times 10^9 / \text{ns/op} \).
+> - Java `thrpt` results in this repo are in **ops/ms**; convert to ops/s by multiplying by 1000.
 
-### 🎯 **Use Case Recommendations**
-- **High-Frequency Trading**: Sub-nanosecond latency for time-critical operations
-- **Real-time Systems**: Consistent performance without GC pauses
-- **Streaming Applications**: Excellent throughput for continuous data flows
-- **Game Engines**: Low-latency event processing for frame-critical operations
+### Single Producer / Single Consumer (SPSC)
 
----
+Using the latest report (Generated: 2025-12-17 10:32 UTC):
 
-*Benchmark generated with Google Benchmark framework*  
-*System: Windows 10, Intel 4-core CPU @ 3.6GHz*  
-*Caches: L1 32KB, L2 256KB, L3 8MB*
+- **Java Disruptor** (`SingleProducerSingleConsumer.producing`, avgt): **~6.92 ns/op** → **~1.44e+08 ops/s**
+- **C++ Disruptor port** (`JMH_SingleProducerSingleConsumer_producing_mean`): **~19.40 ns/op** → **~5.16e+07 ops/s**
+- **C++ tbus-style SPSC baseline** (`JMH_TBusSingleProducerSingleConsumer_producing_mean`): **~15.51 ns/op** → **~6.45e+07 ops/s**
+
+Interpretation:
+- On this data set, **C++ SPSC is ~0.36x Java** (ops/s), so there is **significant optimization headroom** in the C++ port for this scenario.
+- The included **tbus-like SPSC** is faster than the C++ Disruptor SPSC, suggesting remaining overhead in the C++ port path (or scheduling/affinity effects).
+
+### Multi Producer / Single Consumer (MP1C)
+
+- **Java Disruptor** (`MultiProducerSingleConsumer.producing`, thrpt): **~3.66e+07 ops/s** (from ~36617 ops/ms @ 4 threads)
+- **C++ Disruptor port** (`JMH_MultiProducerSingleConsumer_producing/threads:4_mean`): **~23.62 ns/op/thread** → **~4.23e+07 ops/s per thread**
+  - Approx total throughput (rule-of-thumb): **~1.69e+08 ops/s** (\(\approx 4 \times 10^9 / 23.62\))
+
+### Multi Producer / Single Consumer (batch publish)
+
+- **Java Disruptor** (`MultiProducerSingleConsumer.producingBatch`, thrpt): **~2.11e+08 ops/s**
+- **C++ Disruptor port** (`JMH_MultiProducerSingleConsumer_producingBatch/threads:4_mean`): **~2.03e+08 items/s** (from `items_per_second`)
+
+Interpretation:
+- **MP1C batch is already close** between Java and C++ on this data set (same order of magnitude, within ~a few percent).
+
+### Blocking queue baseline
+
+- **Java** (`BlockingQueueBenchmark.producing`, avgt): **~123 ns/op** → **~8.12e+06 ops/s**
+- **C++** (`JMH_BlockingQueueBenchmark_producing_mean`): **~680 ns/op** → **~1.47e+06 ops/s**
+
+This baseline is meant as a “traditional blocking queue” comparator. If C++ and Java baselines differ greatly, validate that the C++ baseline matches the Java `ArrayBlockingQueue` behavior closely (fairness, wakeup strategy, object reuse, etc.).
+
+## Caveats for interpreting cross-language numbers
+
+- **Different harnesses**: Google Benchmark vs JMH (forked JVM, different warmup model). We align parameters, but they are still not identical runtimes.
+- **OS/CPU differences**: Always compare results collected on the same machine if you want to attribute deltas to implementation differences.
+- **Thread scheduling**: MP benchmarks are sensitive to core pinning, background load, and timer resolution.
+
+## What to do next (optimization direction)
+
+- **Prioritize SPSC**: It is currently the largest gap (C++ ~0.36x Java in ops/s in the aligned 1P1C publish test).
+- **Use the included baselines**:
+  - `JMH_EmptyLoop_DoNotOptimize` helps bound measurement noise.
+  - `JMH_TBusSingleProducerSingleConsumer_producing` helps separate “sequencer/disruptor overhead” from “minimal ring mechanics”.

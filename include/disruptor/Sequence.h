@@ -2,16 +2,46 @@
 // 1:1 port skeleton of com.lmax.disruptor.Sequence
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 namespace disruptor {
 
-class Sequence {
+// Java reference (for padding intent):
+//   reference/disruptor/src/main/java/com/lmax/disruptor/Sequence.java
+// Java uses padding superclasses to reduce false sharing around the hot `value` field.
+// We mirror the structure in C++.
+namespace detail {
+
+// Java: Sequence.INITIAL_VALUE = -1L
+inline constexpr int64_t kInitialValue = -1;
+
+// 7 * 16 bytes = 112 bytes, matching the Java source layout intent (p10..p77).
+struct LhsPadding {
+  std::byte p1[112]{};
+};
+
+struct Value : LhsPadding {
+  std::atomic<int64_t> value_;
+  Value() noexcept : value_(kInitialValue) {}
+  explicit Value(int64_t initial) noexcept : value_(initial) {}
+};
+
+// Another 112 bytes on the RHS (p90..p157 in Java).
+struct RhsPadding : Value {
+  std::byte p2[112]{};
+  RhsPadding() noexcept : Value() {}
+  explicit RhsPadding(int64_t initial) noexcept : Value(initial) {}
+};
+
+} // namespace detail
+
+class Sequence : public detail::RhsPadding {
 public:
   static constexpr int64_t INITIAL_VALUE = -1;
 
-  Sequence() noexcept : value_(INITIAL_VALUE) {}
-  explicit Sequence(int64_t initial) noexcept : value_(initial) {}
+  Sequence() noexcept : detail::RhsPadding(INITIAL_VALUE) {}
+  explicit Sequence(int64_t initial) noexcept : detail::RhsPadding(initial) {}
   virtual ~Sequence() = default;
 
   // NOTE: Do not mark these virtual methods noexcept.
@@ -41,9 +71,6 @@ public:
   virtual int64_t getAndAdd(int64_t increment) {
     return value_.fetch_add(increment, std::memory_order_acq_rel);
   }
-
-private:
-  std::atomic<int64_t> value_;
 };
 
 } // namespace disruptor
