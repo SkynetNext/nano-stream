@@ -72,3 +72,13 @@ compile_commands.json
 docs/html/
 docs/latex/
 ai-code-guide.txt
+
+# Benchmark outputs (generated locally/CI artifacts)
+benchmark_*.json
+
+# Large local Gradle distribution zips (downloaded manually)
+gradle-*-bin.zip
+
+# Gradle/JMH build artifacts inside the disruptor submodule (local only)
+reference/disruptor/.gradle/
+reference/disruptor/build/

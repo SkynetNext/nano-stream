@@ -43,7 +43,8 @@
  */
 
 // Core nano-stream foundation
-#include "disruptor/disruptor.h" // IWYU pragma: export
+// NOTE: The Disruptor port lives under include/disruptor/** with umbrella include at include/disruptor.h
+#include "disruptor.h" // IWYU pragma: export
 
 // Aeron driver components
 #include "aeron/driver/conductor/conductor.h" // IWYU pragma: export

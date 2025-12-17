@@ -104,7 +104,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   # - MultiProducerSingleConsumer.producing (JMH thrpt, ops/ms) <-> Typical_MultiProducerSingleConsumer (Google Benchmark, 4 producer benchmark threads; consumer is background)
   # - MultiProducerSingleConsumer.producingBatch (JMH thrpt, ops/ms, batch=100) <-> Typical_MultiProducerSingleConsumerBatch (same measurement scope as above)
 
-  CPP_1P1C=$(jq -r '.benchmarks[] | select(.name == "Typical_SingleProducerSingleConsumer") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  CPP_1P1C=$(jq -r '.benchmarks[] | select(.name == "JMH_SingleProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_1P1C=$(jq -r '.[] | select(.benchmark | test("SingleProducerSingleConsumer\\.producing$")) |
       (.primaryMetric.score) as $s |
       (.primaryMetric.scoreUnit) as $u |
@@ -122,7 +122,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
     printf "| 1P1C publish (ring=1<<20) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_1P1C" "$JAVA_1P1C" "$RATIO" "$WINNER"
   fi
 
-  CPP_MP1C=$(jq -r '.benchmarks[] | select(.name == "Typical_MultiProducerSingleConsumer") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  CPP_MP1C=$(jq -r '.benchmarks[] | select(.name == "JMH_MultiProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_MP1C=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producing$")) |
       (.primaryMetric.score) as $s |
       (.primaryMetric.scoreUnit) as $u |
@@ -137,7 +137,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
     printf "| MP1C publish (P=4, ring=1<<22) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_MP1C" "$JAVA_MP1C" "$RATIO" "$WINNER"
   fi
 
-  CPP_MP1C_BATCH=$(jq -r '.benchmarks[] | select(.name == "Typical_MultiProducerSingleConsumerBatch") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  CPP_MP1C_BATCH=$(jq -r '.benchmarks[] | select(.name == "JMH_MultiProducerSingleConsumer_producingBatch") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_MP1C_BATCH=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producingBatch$")) |
       (.primaryMetric.score) as $s |
       (.primaryMetric.scoreUnit) as $u |

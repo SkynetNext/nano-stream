@@ -14,11 +14,12 @@ else()
 endif()
 
 # Create benchmark executable
+file(GLOB_RECURSE NANO_STREAM_JMH_BENCH_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/jmh/*.cpp"
+)
+
 add_executable(nano_stream_benchmarks
-    benchmark_sequence.cpp
-    benchmark_ring_buffer.cpp
-    benchmark_comparison.cpp
-    benchmark_typical.cpp
+    ${NANO_STREAM_JMH_BENCH_SOURCES}
     benchmark_main.cpp
 )
 

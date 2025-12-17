@@ -37,17 +37,18 @@
  * @endcode
  */
 
-// Core components
-#include "disruptor/ring_buffer.h" // IWYU pragma: export
-#include "disruptor/sequence.h"    // IWYU pragma: export
+// Disruptor core (1:1 Java port headers)
+#include "disruptor/RingBuffer.h"        // IWYU pragma: export
+#include "disruptor/Sequence.h"          // IWYU pragma: export
+#include "disruptor/SequenceBarrier.h"   // IWYU pragma: export
+#include "disruptor/WaitStrategy.h"      // IWYU pragma: export
+#include "disruptor/BusySpinWaitStrategy.h" // IWYU pragma: export
+#include "disruptor/BlockingWaitStrategy.h" // IWYU pragma: export
+#include "disruptor/BatchEventProcessor.h"  // IWYU pragma: export
 
-// SPMC support components
-#include "disruptor/batch_event_processor.h" // IWYU pragma: export
-#include "disruptor/disruptor_dsl.h"         // IWYU pragma: export
-#include "disruptor/sequence_barrier.h"      // IWYU pragma: export
-
-// Main namespace and version info
-#include "disruptor/disruptor.h" // IWYU pragma: export
+// DSL
+#include "disruptor/dsl/Disruptor.h"     // IWYU pragma: export
+#include "disruptor/dsl/ProducerType.h"  // IWYU pragma: export
 
 /**
  * @brief Disruptor namespace containing all library functionality

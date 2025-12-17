@@ -9,38 +9,46 @@ if(EXISTS ${GOOGLETEST_ROOT}/CMakeLists.txt)
     set(gtest_build_tests OFF CACHE BOOL "" FORCE)
     set(gtest_build_samples OFF CACHE BOOL "" FORCE)
     set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
-    
+
     add_subdirectory(${GOOGLETEST_ROOT} ${CMAKE_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
 else()
     message(FATAL_ERROR "Google Test submodule not found. Please run: git submodule update --init --recursive")
 endif()
 
-# Create test executable
-add_executable(nano_stream_tests
-    test_sequence.cpp
-    test_ring_buffer.cpp
-    test_main.cpp
+# Collect all ported Java tests (C++ gtest) under tests/disruptor/**.
+file(GLOB_RECURSE DISRUPTOR_PORTED_TEST_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/disruptor/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/disruptor/*/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/disruptor/*/*/*.cpp"
 )
 
-target_link_libraries(nano_stream_tests
-    PRIVATE
-        nano-stream
-        gtest
-        gtest_main
-)
+if(DISRUPTOR_PORTED_TEST_SOURCES)
+    add_executable(nano_stream_tests
+        ${DISRUPTOR_PORTED_TEST_SOURCES}
+    )
 
-target_include_directories(nano_stream_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
+    target_link_libraries(nano_stream_tests
+        PRIVATE
+            nano-stream
+            gtest
+            gtest_main
+    )
 
-# Suppress unused parameter warnings for tests
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(nano_stream_tests PRIVATE -Wno-unused-parameter)
-elseif(MSVC)
-    target_compile_options(nano_stream_tests PRIVATE /wd4100)
+    target_include_directories(nano_stream_tests
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}
+    )
+
+    # Suppress unused parameter warnings for tests
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        target_compile_options(nano_stream_tests PRIVATE -Wno-unused-parameter)
+    elseif(MSVC)
+        target_compile_options(nano_stream_tests PRIVATE /wd4100)
+    endif()
+
+    include(GoogleTest)
+    gtest_discover_tests(nano_stream_tests)
+else()
+    message(STATUS "No ported Disruptor tests found under tests/disruptor/**")
 endif()
-
-# Add tests to CTest
-include(GoogleTest)
-gtest_discover_tests(nano_stream_tests)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../disruptor/ring_buffer.h"
+#include "disruptor/RingBuffer.h"
 #include "../util/memory_mapped_file.h"
 #include <atomic>
 #include <cstdint>

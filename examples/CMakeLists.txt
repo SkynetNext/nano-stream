@@ -1,125 +1,37 @@
-# Examples for nano-stream library
+# Disruptor Java examples (ported 1:1 from reference/disruptor/src/examples/java)
 
-add_executable(basic_example
-    basic_example.cpp
-)
+set(DISRUPTOR_EXAMPLES_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/disruptor_examples)
 
-add_executable(advanced_example
-    advanced_example.cpp
-)
+function(add_disruptor_example target source)
+  add_executable(${target} ${source})
+  target_link_libraries(${target} PRIVATE nano-stream)
+  target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/include ${DISRUPTOR_EXAMPLES_ROOT})
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(${target} PRIVATE -Wno-unused-parameter)
+  elseif(MSVC)
+    target_compile_options(${target} PRIVATE /wd4100)
+  endif()
+endfunction()
 
+# Each executable corresponds to a Java example with a runnable entry point.
+add_disruptor_example(disruptor_example_WaitForShutdown           ${DISRUPTOR_EXAMPLES_ROOT}/WaitForShutdown.cpp)
+add_disruptor_example(disruptor_example_WaitForProcessing         ${DISRUPTOR_EXAMPLES_ROOT}/WaitForProcessing.cpp)
+add_disruptor_example(disruptor_example_ThreeToOneDisruptor       ${DISRUPTOR_EXAMPLES_ROOT}/ThreeToOneDisruptor.cpp)
+add_disruptor_example(disruptor_example_ShutdownOnError           ${DISRUPTOR_EXAMPLES_ROOT}/ShutdownOnError.cpp)
+add_disruptor_example(disruptor_example_SequentialThreeConsumers  ${DISRUPTOR_EXAMPLES_ROOT}/SequentialThreeConsumers.cpp)
+add_disruptor_example(disruptor_example_PullWithPoller            ${DISRUPTOR_EXAMPLES_ROOT}/PullWithPoller.cpp)
+add_disruptor_example(disruptor_example_PullWithBatchedPoller     ${DISRUPTOR_EXAMPLES_ROOT}/PullWithBatchedPoller.cpp)
+add_disruptor_example(disruptor_example_Pipeliner                ${DISRUPTOR_EXAMPLES_ROOT}/Pipeliner.cpp)
+add_disruptor_example(disruptor_example_DynamicallyAddHandler     ${DISRUPTOR_EXAMPLES_ROOT}/DynamicallyAddHandler.cpp)
+add_disruptor_example(disruptor_example_KeyedBatching             ${DISRUPTOR_EXAMPLES_ROOT}/KeyedBatching.cpp)
+add_disruptor_example(disruptor_example_MultiProducerWithTranslator ${DISRUPTOR_EXAMPLES_ROOT}/MultiProducerWithTranslator.cpp)
+add_disruptor_example(disruptor_example_HandleExceptionOnTranslate ${DISRUPTOR_EXAMPLES_ROOT}/HandleExceptionOnTranslate.cpp)
+add_disruptor_example(disruptor_example_EarlyReleaseHandler       ${DISRUPTOR_EXAMPLES_ROOT}/EarlyReleaseHandler.cpp)
 
+# longevent variants
+add_disruptor_example(disruptor_example_LongEventMain_lambdas     ${DISRUPTOR_EXAMPLES_ROOT}/longevent/lambdas/LongEventMain.cpp)
+add_disruptor_example(disruptor_example_LongEventMain_legacy      ${DISRUPTOR_EXAMPLES_ROOT}/longevent/legacy/LongEventMain.cpp)
+add_disruptor_example(disruptor_example_LongEventMain_methodrefs  ${DISRUPTOR_EXAMPLES_ROOT}/longevent/methodrefs/LongEventMain.cpp)
 
-
-
-add_executable(complete_aeron_example
-    complete_aeron_example.cpp
-)
-
-add_executable(aeron_full_example
-    aeron_full_example.cpp
-)
-
-add_executable(log_buffer_example
-    log_buffer_example.cpp
-)
-
-add_executable(udp_transport_example
-    udp_transport_example.cpp
-)
-
-add_executable(spmc_example
-    spmc_example.cpp
-)
-
-# Suppress unused parameter warnings for each target
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(basic_example PRIVATE -Wno-unused-parameter)
-    target_compile_options(advanced_example PRIVATE -Wno-unused-parameter)
-    target_compile_options(complete_aeron_example PRIVATE -Wno-unused-parameter)
-    target_compile_options(aeron_full_example PRIVATE -Wno-unused-parameter)
-    target_compile_options(log_buffer_example PRIVATE -Wno-unused-parameter)
-    target_compile_options(udp_transport_example PRIVATE -Wno-unused-parameter)
-    target_compile_options(spmc_example PRIVATE -Wno-unused-parameter)
-elseif(MSVC)
-    target_compile_options(basic_example PRIVATE /wd4100)
-    target_compile_options(advanced_example PRIVATE /wd4100)
-    target_compile_options(complete_aeron_example PRIVATE /wd4100)
-    target_compile_options(aeron_full_example PRIVATE /wd4100)
-    target_compile_options(log_buffer_example PRIVATE /wd4100)
-    target_compile_options(udp_transport_example PRIVATE /wd4100)
-    target_compile_options(spmc_example PRIVATE /wd4100)
-endif()
-
-target_link_libraries(basic_example
-    PRIVATE
-        nano-stream
-)
-
-target_link_libraries(advanced_example
-    PRIVATE
-        nano-stream
-)
-
-
-
-target_link_libraries(complete_aeron_example
-    PRIVATE
-        nano-stream
-)
-
-target_link_libraries(aeron_full_example
-    PRIVATE
-        nano-stream
-)
-
-target_link_libraries(log_buffer_example
-    PRIVATE
-        nano-stream
-)
-
-target_link_libraries(udp_transport_example
-    PRIVATE
-        nano-stream
-)
-
-target_link_libraries(spmc_example
-    PRIVATE
-        nano-stream
-)
-
-target_include_directories(basic_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_include_directories(advanced_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-
-target_include_directories(complete_aeron_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_include_directories(aeron_full_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_include_directories(log_buffer_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_include_directories(udp_transport_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_include_directories(spmc_example
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-)
+# objectevent main
+add_disruptor_example(disruptor_example_ObjectEventMain           ${DISRUPTOR_EXAMPLES_ROOT}/objectevent/Main.cpp)
