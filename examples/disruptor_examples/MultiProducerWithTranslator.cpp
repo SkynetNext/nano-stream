@@ -1,7 +1,8 @@
 // 1:1-ish port of:
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/MultiProducerWithTranslator.java
 //
-// NOTE: Java version loops forever. This C++ port runs a bounded number of iterations.
+// NOTE: Java version loops forever. This C++ port runs a bounded number of
+// iterations.
 
 #include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/EventTranslatorThreeArg.h"
@@ -22,33 +23,40 @@ struct IMessage {};
 struct ITransportable {};
 
 struct ObjectBox {
-  IMessage* message{nullptr};
-  ITransportable* transportable{nullptr};
+  IMessage *message{nullptr};
+  ITransportable *transportable{nullptr};
   std::string string{};
 
   struct Factory final : public disruptor::EventFactory<ObjectBox> {
     ObjectBox newInstance() override { return ObjectBox(); }
   };
 
-  static inline std::shared_ptr<disruptor::EventFactory<ObjectBox>> FACTORY = std::make_shared<Factory>();
+  static inline std::shared_ptr<disruptor::EventFactory<ObjectBox>> FACTORY =
+      std::make_shared<Factory>();
 
-  void setMessage(IMessage& arg0) { message = &arg0; }
-  void setTransportable(ITransportable& arg1) { transportable = &arg1; }
-  void setStreamName(const std::string& arg2) { string = arg2; }
+  void setMessage(IMessage &arg0) { message = &arg0; }
+  void setTransportable(ITransportable &arg1) { transportable = &arg1; }
+  void setStreamName(const std::string &arg2) { string = arg2; }
 };
 
-class Publisher final : public disruptor::EventTranslatorThreeArg<ObjectBox, IMessage*, ITransportable*, std::string> {
+class Publisher final
+    : public disruptor::EventTranslatorThreeArg<ObjectBox, IMessage *,
+                                                ITransportable *, std::string> {
 public:
-  void translateTo(ObjectBox& event, int64_t /*sequence*/, IMessage* arg0, ITransportable* arg1, std::string arg2) override {
-    if (arg0) event.setMessage(*arg0);
-    if (arg1) event.setTransportable(*arg1);
+  void translateTo(ObjectBox &event, int64_t /*sequence*/, IMessage *arg0,
+                   ITransportable *arg1, std::string arg2) override {
+    if (arg0)
+      event.setMessage(*arg0);
+    if (arg1)
+      event.setTransportable(*arg1);
     event.setStreamName(arg2);
   }
 };
 
 class Consumer final : public disruptor::EventHandler<ObjectBox> {
 public:
-  void onEvent(ObjectBox& /*event*/, int64_t /*sequence*/, bool /*endOfBatch*/) override {}
+  void onEvent(ObjectBox & /*event*/, int64_t /*sequence*/,
+               bool /*endOfBatch*/) override {}
 };
 
 constexpr int kRingSize = 1024;
@@ -56,17 +64,17 @@ constexpr int kRingSize = 1024;
 } // namespace
 
 int main() {
-  auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
-
-  disruptor::dsl::Disruptor<ObjectBox> disruptor(
-      ObjectBox::FACTORY, kRingSize, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
+  auto &tf = disruptor::util::DaemonThreadFactory::INSTANCE();
+  disruptor::dsl::Disruptor<ObjectBox, disruptor::dsl::ProducerType::MULTI,
+                            disruptor::BlockingWaitStrategy>
+      disruptor(ObjectBox::FACTORY, kRingSize, tf,
+                disruptor::BlockingWaitStrategy{});
 
   Consumer c1;
   Consumer c2;
   disruptor.handleEventsWith(c1).then(c2);
 
-  auto& ringBuffer = disruptor.getRingBuffer();
+  auto &ringBuffer = disruptor.getRingBuffer();
   Publisher p;
   IMessage message;
   ITransportable transportable;
@@ -90,5 +98,3 @@ int main() {
   disruptor.shutdown(2000);
   return 0;
 }
-
-

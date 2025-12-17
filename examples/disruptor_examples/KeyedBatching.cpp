@@ -1,8 +1,8 @@
 // 1:1-ish port of:
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/KeyedBatching.java
 //
-// Java source defines only the handler type. This C++ port provides a small runnable main()
-// that exercises the handler.
+// Java source defines only the handler type. This C++ port provides a small
+// runnable main() that exercises the handler.
 
 #include "disruptor/dsl/Disruptor.h"
 #include "disruptor/util/DaemonThreadFactory.h"
@@ -25,7 +25,8 @@ struct KeyedEventFactory final : public disruptor::EventFactory<KeyedEvent> {
 
 class KeyedBatching final : public disruptor::EventHandler<KeyedEvent> {
 public:
-  void onEvent(KeyedEvent& event, int64_t /*sequence*/, bool endOfBatch) override {
+  void onEvent(KeyedEvent &event, int64_t /*sequence*/,
+               bool endOfBatch) override {
     if (!batch_.empty() && event.key != key_) {
       processBatch();
     }
@@ -52,9 +53,11 @@ private:
 } // namespace
 
 int main() {
-  auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
+  auto &tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<KeyedEventFactory>();
-  disruptor::dsl::Disruptor<KeyedEvent> d(factory, 1024, tf);
+  disruptor::dsl::Disruptor<KeyedEvent, disruptor::dsl::ProducerType::MULTI,
+                            disruptor::BlockingWaitStrategy>
+      d(factory, 1024, tf, disruptor::BlockingWaitStrategy{});
 
   KeyedBatching handler;
   d.handleEventsWith(handler);
@@ -63,7 +66,7 @@ int main() {
   // Publish some keyed events.
   for (int i = 0; i < 10; ++i) {
     int64_t seq = rb->next();
-    auto& e = rb->get(seq);
+    auto &e = rb->get(seq);
     e.key = i % 2;
     e.data = "item-" + std::to_string(i);
     rb->publish(seq);
@@ -72,5 +75,3 @@ int main() {
   d.shutdown(2000);
   return 0;
 }
-
-

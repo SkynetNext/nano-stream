@@ -20,8 +20,7 @@ namespace disruptor {
 template <typename WaitStrategyT>
 class MultiProducerSequencer final : public AbstractSequencer<WaitStrategyT> {
 public:
-  MultiProducerSequencer(int bufferSize,
-                         WaitStrategyT waitStrategy)
+  MultiProducerSequencer(int bufferSize, WaitStrategyT waitStrategy)
       : AbstractSequencer<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
         gatingSequenceCache_(SEQUENCER_INITIAL_CURSOR_VALUE),
         availableBuffer_(static_cast<size_t>(bufferSize)),
@@ -36,7 +35,8 @@ public:
   bool hasAvailableCapacity(int requiredCapacity) {
     auto snap = this->gatingSequences_.load(std::memory_order_acquire);
     // Java passes gatingSequences array + cursor.get()
-    return hasAvailableCapacity(snap.get(), requiredCapacity, this->cursor_.get());
+    return hasAvailableCapacity(snap.get(), requiredCapacity,
+                                this->cursor_.get());
   }
 
   void claim(int64_t sequence) { this->cursor_.set(sequence); }
@@ -89,7 +89,7 @@ public:
   int64_t remainingCapacity() {
     int64_t consumed = minimumSequence(this->cursor_.get());
     int64_t produced = this->cursor_.get();
-    return getBufferSize() - (produced - consumed);
+    return this->getBufferSize() - (produced - consumed);
   }
 
   void publish(int64_t sequence) {
@@ -127,14 +127,15 @@ public:
   }
 
   // Override to invalidate cache when gating sequences change
-  void addGatingSequences(Sequence *const *gatingSequences,
-                          int count) {
-    AbstractSequencer<WaitStrategyT>::addGatingSequences(gatingSequences, count);
+  void addGatingSequences(Sequence *const *gatingSequences, int count) {
+    AbstractSequencer<WaitStrategyT>::addGatingSequences(gatingSequences,
+                                                         count);
     gatingSequencesCache_ = nullptr; // Invalidate cache
   }
 
   bool removeGatingSequence(Sequence &sequence) {
-    bool result = AbstractSequencer<WaitStrategyT>::removeGatingSequence(sequence);
+    bool result =
+        AbstractSequencer<WaitStrategyT>::removeGatingSequence(sequence);
     gatingSequencesCache_ = nullptr; // Invalidate cache
     return result;
   }

@@ -4,7 +4,6 @@
 
 #include "../EventProcessor.h"
 #include "../Sequence.h"
-#include "../SequenceBarrier.h"
 #include "ConsumerInfo.h"
 #include "ThreadFactory.h"
 
@@ -13,9 +12,10 @@
 
 namespace disruptor::dsl {
 
-class EventProcessorInfo final : public ConsumerInfo {
+template <typename BarrierPtrT>
+class EventProcessorInfo final : public ConsumerInfo<BarrierPtrT> {
 public:
-  EventProcessorInfo(EventProcessor& eventprocessor, SequenceBarrier* barrier)
+  EventProcessorInfo(EventProcessor& eventprocessor, BarrierPtrT barrier)
       : eventprocessor_(&eventprocessor), barrier_(barrier), endOfChain_(true) {}
 
   EventProcessor& getEventProcessor() { return *eventprocessor_; }
@@ -23,7 +23,7 @@ public:
   Sequence* const* getSequences() override { return sequences_; }
   int getSequenceCount() const override { return 1; }
 
-  SequenceBarrier* getBarrier() override { return barrier_; }
+  BarrierPtrT getBarrier() override { return barrier_; }
   bool isEndOfChain() override { return endOfChain_; }
 
   void start(ThreadFactory& threadFactory) override {
@@ -47,7 +47,7 @@ public:
 
 private:
   EventProcessor* eventprocessor_;
-  SequenceBarrier* barrier_;
+  BarrierPtrT barrier_;
   bool endOfChain_;
   Sequence* sequences_[1]{&eventprocessor_->getSequence()};
   std::thread thread_{};

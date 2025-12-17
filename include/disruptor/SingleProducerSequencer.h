@@ -58,11 +58,12 @@ struct SpSequencerFields : public SpSequencerPad<WaitStrategyT> {
 } // namespace detail
 
 template <typename WaitStrategyT>
-class SingleProducerSequencer final : public detail::SpSequencerFields<WaitStrategyT> {
+class SingleProducerSequencer final
+    : public detail::SpSequencerFields<WaitStrategyT> {
 public:
-  SingleProducerSequencer(int bufferSize,
-                          WaitStrategyT waitStrategy)
-      : detail::SpSequencerFields<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
+  SingleProducerSequencer(int bufferSize, WaitStrategyT waitStrategy)
+      : detail::SpSequencerFields<WaitStrategyT>(bufferSize,
+                                                 std::move(waitStrategy)),
         gatingSequencesCache_(nullptr) {}
 
   bool hasAvailableCapacity(int requiredCapacity) {
@@ -127,7 +128,7 @@ public:
     int64_t nextValue = this->nextValue_;
     int64_t consumed = minimumSequence(nextValue);
     int64_t produced = nextValue;
-    return getBufferSize() - (produced - consumed);
+    return this->getBufferSize() - (produced - consumed);
   }
 
   void claim(int64_t sequence) { this->nextValue_ = sequence; }
@@ -139,7 +140,10 @@ public:
     }
   }
 
-  void publish(int64_t lo, int64_t hi) { (void)lo; publish(hi); }
+  void publish(int64_t lo, int64_t hi) {
+    (void)lo;
+    publish(hi);
+  }
 
   bool isAvailable(int64_t sequence) {
     const int64_t currentSequence = this->cursor_.get();
@@ -153,14 +157,15 @@ public:
   }
 
   // Override to invalidate cache when gating sequences change
-  void addGatingSequences(Sequence *const *gatingSequences,
-                          int count) {
-    AbstractSequencer<WaitStrategyT>::addGatingSequences(gatingSequences, count);
+  void addGatingSequences(Sequence *const *gatingSequences, int count) {
+    AbstractSequencer<WaitStrategyT>::addGatingSequences(gatingSequences,
+                                                         count);
     gatingSequencesCache_ = nullptr; // Invalidate cache
   }
 
   bool removeGatingSequence(Sequence &sequence) {
-    bool result = AbstractSequencer<WaitStrategyT>::removeGatingSequence(sequence);
+    bool result =
+        AbstractSequencer<WaitStrategyT>::removeGatingSequence(sequence);
     gatingSequencesCache_ = nullptr; // Invalidate cache
     return result;
   }

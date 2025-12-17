@@ -1,24 +1,24 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.dsl.ConsumerInfo (package-private interface)
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/dsl/ConsumerInfo.java
+// Source:
+// reference/disruptor/src/main/java/com/lmax/disruptor/dsl/ConsumerInfo.java
 
 #include "../Sequence.h"
-#include "../SequenceBarrier.h"
 #include "ThreadFactory.h"
 
 namespace disruptor::dsl {
 
-class ConsumerInfo {
+template <typename BarrierPtrT> class ConsumerInfo {
 public:
   virtual ~ConsumerInfo() = default;
 
-  virtual Sequence* const* getSequences() = 0;
+  virtual Sequence *const *getSequences() = 0;
   virtual int getSequenceCount() const = 0;
 
-  virtual SequenceBarrier* getBarrier() = 0;
+  virtual BarrierPtrT getBarrier() = 0;
   virtual bool isEndOfChain() = 0;
 
-  virtual void start(ThreadFactory& threadFactory) = 0;
+  virtual void start(ThreadFactory &threadFactory) = 0;
   virtual void halt() = 0;
   virtual void join() = 0;
   virtual void markAsUsedInBarrier() = 0;
@@ -26,5 +26,3 @@ public:
 };
 
 } // namespace disruptor::dsl
-
-

@@ -41,8 +41,11 @@ int main() {
   try {
     auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
 
-    disruptor::dsl::Disruptor<disruptor_examples::support::LongEvent> disruptor(
-        disruptor_examples::support::LongEvent::FACTORY, 16, tf);
+    disruptor::dsl::Disruptor<disruptor_examples::support::LongEvent,
+                              disruptor::dsl::ProducerType::MULTI,
+                              disruptor::BlockingWaitStrategy>
+        disruptor(disruptor_examples::support::LongEvent::FACTORY, 16, tf,
+                  disruptor::BlockingWaitStrategy{});
 
     // Java uses CountDownLatch(2) for two handlers in chain.
     std::atomic<int> shutdownCountdown{2};

@@ -7,7 +7,6 @@
 #include "DataProvider.h"
 #include "EventHandler.h"
 #include "RewindableEventHandler.h"
-#include "SequenceBarrier.h"
 
 #include <cstdint>
 #include <limits>
@@ -25,11 +24,11 @@ public:
     return *this;
   }
 
-  template <typename T>
-  std::shared_ptr<BatchEventProcessor<T>> build(DataProvider<T>& dataProvider,
-                                                SequenceBarrier& sequenceBarrier,
-                                                EventHandler<T>& eventHandler) {
-    auto processor = std::make_shared<BatchEventProcessor<T>>(dataProvider,
+  template <typename T, typename BarrierT>
+  std::shared_ptr<BatchEventProcessor<T, BarrierT>> build(DataProvider<T>& dataProvider,
+                                                          BarrierT& sequenceBarrier,
+                                                          EventHandler<T>& eventHandler) {
+    auto processor = std::make_shared<BatchEventProcessor<T, BarrierT>>(dataProvider,
                                                               sequenceBarrier,
                                                               eventHandler,
                                                               maxBatchSize_,
@@ -38,13 +37,13 @@ public:
     return processor;
   }
 
-  template <typename T>
-  std::shared_ptr<BatchEventProcessor<T>> build(DataProvider<T>& dataProvider,
-                                                SequenceBarrier& sequenceBarrier,
-                                                RewindableEventHandler<T>& rewindableEventHandler,
-                                                BatchRewindStrategy& batchRewindStrategy) {
+  template <typename T, typename BarrierT>
+  std::shared_ptr<BatchEventProcessor<T, BarrierT>> build(DataProvider<T>& dataProvider,
+                                                          BarrierT& sequenceBarrier,
+                                                          RewindableEventHandler<T>& rewindableEventHandler,
+                                                          BatchRewindStrategy& batchRewindStrategy) {
     // Java: NPE if batchRewindStrategy null (we take ref so never null).
-    return std::make_shared<BatchEventProcessor<T>>(dataProvider,
+    return std::make_shared<BatchEventProcessor<T, BarrierT>>(dataProvider,
                                                     sequenceBarrier,
                                                     rewindableEventHandler,
                                                     maxBatchSize_,

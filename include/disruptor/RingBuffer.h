@@ -32,6 +32,7 @@ namespace disruptor {
 template <typename E, typename SequencerT> class RingBuffer final {
 public:
   static constexpr int64_t INITIAL_CURSOR_VALUE = Sequence::INITIAL_VALUE;
+  using SequencerType = SequencerT;
 
   // Factory methods
   template <typename WaitStrategyT>

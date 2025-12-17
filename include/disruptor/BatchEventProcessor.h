@@ -14,7 +14,6 @@
 #include "RewindableEventHandler.h"
 #include "RewindableException.h"
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "Sequencer.h"
 #include "TimeoutException.h"
 
@@ -26,11 +25,11 @@
 
 namespace disruptor {
 
-template <typename T>
+template <typename T, typename BarrierT>
 class BatchEventProcessor final : public EventProcessor {
 public:
   BatchEventProcessor(DataProvider<T>& dataProvider,
-                      SequenceBarrier& sequenceBarrier,
+                      BarrierT& sequenceBarrier,
                       EventHandlerBase<T>& eventHandler,
                       int maxBatchSize,
                       BatchRewindStrategy* batchRewindStrategy)
@@ -103,7 +102,7 @@ private:
   std::atomic<int> running_;
   ExceptionHandler<T>* exceptionHandler_;
   DataProvider<T>* dataProvider_;
-  SequenceBarrier* sequenceBarrier_;
+  BarrierT* sequenceBarrier_;
   EventHandlerBase<T>* eventHandler_;
   int batchLimitOffset_;
   Sequence sequence_;
