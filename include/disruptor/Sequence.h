@@ -52,7 +52,15 @@ public:
   virtual void set(int64_t v) { value_.store(v, std::memory_order_release); }
 
   // Java: setVolatile - used as StoreLoad fence.
-  virtual void setVolatile(int64_t v) { value_.store(v, std::memory_order_seq_cst); }
+  virtual void setVolatile(int64_t v) {
+    // Java reference:
+    //   VarHandle.releaseFence();
+    //   this.value = value;
+    //   VarHandle.fullFence();
+    std::atomic_thread_fence(std::memory_order_release);
+    value_.store(v, std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+  }
 
   virtual bool compareAndSet(int64_t expected, int64_t desired) {
     return value_.compare_exchange_strong(expected, desired,
