@@ -14,8 +14,9 @@ namespace disruptor {
 
 class BusySpinWaitStrategy final : public WaitStrategy {
 public:
-  int64_t waitFor(int64_t sequence, const Sequence& /*cursor*/, const Sequence& dependentSequence,
-                  SequenceBarrier& barrier) override {
+  int64_t waitFor(int64_t sequence, const Sequence & /*cursor*/,
+                  const Sequence &dependentSequence,
+                  SequenceBarrier &barrier) override {
     int64_t available;
     while ((available = dependentSequence.get()) < sequence) {
       barrier.checkAlert();
@@ -33,5 +34,3 @@ public:
 };
 
 } // namespace disruptor
-
-

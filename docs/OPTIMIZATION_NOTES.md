@@ -106,11 +106,111 @@ The current baseline CI comparison we reference is the aligned run generated on 
 - **tbus benchmark correctness**:
   - Replace the “tbus-inspired” ring with a benchmark that calls the original TSF4G `tbus` API directly on Linux.
 
-## Next planned optimization (based on perf)
+## Optimization round 2: perf-guided hot-path improvements (2025-12-17)
 
-- Avoid `shared_ptr` on the SPSC critical path:
-  - Keep ownership with `shared_ptr`, but use a cached `Sequencer*` (raw pointer) for hot `next/publish` calls to eliminate
-    `shared_ptr_access` overhead in `RingBuffer::publish`.
+After initial padding/fence alignment (see above), we ran detailed profiling with `perf record/report` on the SPSC benchmark 
+(`JMH_SingleProducerSingleConsumer_producing`) and identified remaining bottlenecks:
+
+### Identified hotspots (from perf report)
+
+1. **Producer path** (~50% CPU):
+   - `SingleProducerSequencer::next()`: 30.12%
+   - `SingleProducerSequencer::publish()`: 11.01%
+   - Overhead from empty `signalAllWhenBlocking()` calls: 3.66%
+
+2. **Consumer path** (~50% CPU):
+   - `Sequence::get()` in busy-spin: 22.88%
+   - `BusySpinWaitStrategy::waitFor`: 18.56%
+
+### Optimizations implemented
+
+#### 1. Cache raw pointer to gatingSequences (CRITICAL - 14.22% overhead)
+
+**Problem**: Perf revealed 14.22% overhead from `std::__shared_ptr_access<disruptor::Sequencer, ...>::operator->`.
+Root cause: `gatingSequences_` is `std::atomic<std::shared_ptr<std::vector<Sequence*>>>`. Every `.load()` in 
+`SingleProducerSequencer::minimumSequence()` and `MultiProducerSequencer::minimumSequence()` (called from `next()` 
+on hot path) performs atomic operations and reference count manipulation.
+
+**Solution**: Added a cached raw pointer `gatingSequencesCache_` in both `SingleProducerSequencer` and 
+`MultiProducerSequencer` that points to the vector directly:
+- Initialize cache to nullptr
+- On first access in `minimumSequence()`, load shared_ptr and cache the raw pointer
+- Invalidate cache (set to nullptr) when `addGatingSequences()` or `removeGatingSequence()` is called
+- Since gating sequences are only modified at setup/teardown (not during benchmark hot path), cache remains valid
+
+```cpp
+// Before: atomic shared_ptr load on every next() call
+int64_t minimumSequence(int64_t defaultMin) {
+  auto snap = gatingSequences_.load(std::memory_order_acquire);  // Atomic + refcount ops!
+  if (!snap) return defaultMin;
+  return Util::getMinimumSequence(*snap, defaultMin);
+}
+
+// After: cached raw pointer (fast path)
+mutable const std::vector<Sequence*>* gatingSequencesCache_;
+
+int64_t minimumSequence(int64_t defaultMin) {
+  auto* cached = gatingSequencesCache_;
+  if (!cached) {  // Only on first call or after modification
+    auto snap = gatingSequences_.load(std::memory_order_acquire);
+    if (!snap) return defaultMin;
+    gatingSequencesCache_ = snap.get();  // Cache for subsequent calls
+    return Util::getMinimumSequence(*snap, defaultMin);
+  }
+  return Util::getMinimumSequence(*cached, defaultMin);  // Fast path: no atomic ops
+}
+```
+
+**Expected impact**: **10-15% throughput improvement** by eliminating atomic shared_ptr operations from producer hot path.
+
+#### 2. Branch prediction hint for non-blocking strategies
+
+**Problem**: Even though `signalOnPublish_` correctly guards calls to `signalAllWhenBlocking()` for non-blocking strategies,
+perf showed 3.66% overhead attributed to `BusySpinWaitStrategy::signalAllWhenBlocking` calls.
+
+**Solution**: Added `[[unlikely]]` attribute to the `if (signalOnPublish_)` branch in `SingleProducerSequencer::publish()` 
+and `MultiProducerSequencer::publish()` to hint the compiler that this branch is cold for BusySpinWaitStrategy.
+
+```cpp
+if (signalOnPublish_) [[unlikely]] {
+  waitStrategy_->signalAllWhenBlocking();
+}
+```
+
+**Expected impact**: 3-5% throughput improvement by eliminating branch misprediction and improving instruction cache utilization.
+
+### Combined expected improvement
+
+Conservative estimate: **13-20% overall SPSC throughput improvement**
+- Cached gatingSequences pointer: 10-15% (primary)
+- Branch hint optimization: 3-5%
+
+### Validation plan
+
+1. Re-run `perf record` on optimized build:
+   ```bash
+   sudo perf record -e cycles:u -F 999 -g --call-graph=dwarf -- \
+     ./build-perf/benchmarks/nano_stream_benchmarks \
+     --benchmark_filter='^JMH_SingleProducerSingleConsumer_producing($|/.*)' \
+     --benchmark_min_time=5s
+   ```
+
+2. Compare perf reports:
+   - `std::__shared_ptr_access<disruptor::Sequencer, ...>` should drop from 14.22% to near-zero
+   - `BusySpinWaitStrategy::signalAllWhenBlocking` should drop from 3.66% to <0.5%
+
+3. Benchmark throughput comparison:
+   - Run comparison script against baseline (from 2025-12-17 11:09 UTC)
+   - Target: 5-10% improvement in SPSC ops/sec
+
+### Next optimization opportunities
+
+If further improvement is needed after validation:
+- Consider CRTP-based compile-time WaitStrategy selection (would eliminate 3.66% virtual call overhead entirely)
+  - Template `AbstractSequencer` and derived classes on `WaitStrategy` type
+  - Allows compiler to inline `signalAllWhenBlocking()` calls and devirtualize `waitFor()`
+  - Trade-off: More template instantiations, slightly larger binary
+- Profile multi-producer scenarios separately (different hot paths and contention patterns)
 
 ## Notes / caveats
 

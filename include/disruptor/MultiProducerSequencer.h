@@ -1,6 +1,7 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.MultiProducerSequencer
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/MultiProducerSequencer.java
+// Source:
+// reference/disruptor/src/main/java/com/lmax/disruptor/MultiProducerSequencer.java
 
 #include "AbstractSequencer.h"
 #include "InsufficientCapacityException.h"
@@ -18,13 +19,15 @@ namespace disruptor {
 
 class MultiProducerSequencer final : public AbstractSequencer {
 public:
-  MultiProducerSequencer(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
+  MultiProducerSequencer(int bufferSize,
+                         std::unique_ptr<WaitStrategy> waitStrategy)
       : AbstractSequencer(bufferSize, std::move(waitStrategy)),
         gatingSequenceCache_(Sequencer::INITIAL_CURSOR_VALUE),
         availableBuffer_(static_cast<size_t>(bufferSize)),
         indexMask_(bufferSize - 1),
-        indexShift_(disruptor::util::Util::log2(bufferSize)) {
-    for (auto& a : availableBuffer_) {
+        indexShift_(disruptor::util::Util::log2(bufferSize)),
+        gatingSequencesCache_(nullptr) {
+    for (auto &a : availableBuffer_) {
       a.store(-1, std::memory_order_relaxed);
     }
   }
@@ -90,7 +93,9 @@ public:
 
   void publish(int64_t sequence) override {
     setAvailable(sequence);
-    if (signalOnPublish_) {
+    // Optimization: For non-blocking strategies (e.g. BusySpinWaitStrategy),
+    // signalOnPublish_ is false.
+    if (signalOnPublish_) [[unlikely]] {
       waitStrategy_->signalAllWhenBlocking();
     }
   }
@@ -99,7 +104,9 @@ public:
     for (int64_t l = lo; l <= hi; ++l) {
       setAvailable(l);
     }
-    if (signalOnPublish_) {
+    // Optimization: For non-blocking strategies (e.g. BusySpinWaitStrategy),
+    // signalOnPublish_ is false.
+    if (signalOnPublish_) [[unlikely]] {
       waitStrategy_->signalAllWhenBlocking();
     }
   }
@@ -107,11 +114,14 @@ public:
   bool isAvailable(int64_t sequence) override {
     int index = calculateIndex(sequence);
     int flag = calculateAvailabilityFlag(sequence);
-    return availableBuffer_[static_cast<size_t>(index)].load(std::memory_order_acquire) == flag;
+    return availableBuffer_[static_cast<size_t>(index)].load(
+               std::memory_order_acquire) == flag;
   }
 
-  int64_t getHighestPublishedSequence(int64_t lowerBound, int64_t availableSequence) override {
-    for (int64_t sequence = lowerBound; sequence <= availableSequence; ++sequence) {
+  int64_t getHighestPublishedSequence(int64_t lowerBound,
+                                      int64_t availableSequence) override {
+    for (int64_t sequence = lowerBound; sequence <= availableSequence;
+         ++sequence) {
       if (!isAvailable(sequence)) {
         return sequence - 1;
       }
@@ -119,19 +129,40 @@ public:
     return availableSequence;
   }
 
+  // Override to invalidate cache when gating sequences change
+  void addGatingSequences(Sequence *const *gatingSequences,
+                          int count) override {
+    AbstractSequencer::addGatingSequences(gatingSequences, count);
+    gatingSequencesCache_ = nullptr; // Invalidate cache
+  }
+
+  bool removeGatingSequence(Sequence &sequence) override {
+    bool result = AbstractSequencer::removeGatingSequence(sequence);
+    gatingSequencesCache_ = nullptr; // Invalidate cache
+    return result;
+  }
+
 private:
   Sequence gatingSequenceCache_;
   std::vector<std::atomic<int>> availableBuffer_;
   int indexMask_;
   int indexShift_;
+  // Optimization: Cache raw pointer to gatingSequences vector to avoid atomic
+  // shared_ptr operations. This is safe because gatingSequences_ is only
+  // updated during add/remove (not on hot path), and we refresh the cache when
+  // it's null.
+  mutable const std::vector<Sequence *> *gatingSequencesCache_;
 
-  bool hasAvailableCapacity(const std::vector<Sequence*>* gatingSequences, int requiredCapacity, int64_t cursorValue) {
+  bool hasAvailableCapacity(const std::vector<Sequence *> *gatingSequences,
+                            int requiredCapacity, int64_t cursorValue) {
     int64_t wrapPoint = (cursorValue + requiredCapacity) - bufferSize_;
     int64_t cachedGatingSequence = gatingSequenceCache_.get();
 
-    if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue) {
+    if (wrapPoint > cachedGatingSequence ||
+        cachedGatingSequence > cursorValue) {
       int64_t minSequence = gatingSequences
-                                ? disruptor::util::Util::getMinimumSequence(*gatingSequences, cursorValue)
+                                ? disruptor::util::Util::getMinimumSequence(
+                                      *gatingSequences, cursorValue)
                                 : cursorValue;
       gatingSequenceCache_.set(minSequence);
 
@@ -144,22 +175,39 @@ private:
   }
 
   void setAvailable(int64_t sequence) {
-    setAvailableBufferValue(calculateIndex(sequence), calculateAvailabilityFlag(sequence));
+    setAvailableBufferValue(calculateIndex(sequence),
+                            calculateAvailabilityFlag(sequence));
   }
 
   void setAvailableBufferValue(int index, int flag) {
-    availableBuffer_[static_cast<size_t>(index)].store(flag, std::memory_order_release);
+    availableBuffer_[static_cast<size_t>(index)].store(
+        flag, std::memory_order_release);
   }
 
-  int calculateAvailabilityFlag(int64_t sequence) const { return static_cast<int>(sequence >> indexShift_); }
-  int calculateIndex(int64_t sequence) const { return static_cast<int>(sequence) & indexMask_; }
+  int calculateAvailabilityFlag(int64_t sequence) const {
+    return static_cast<int>(sequence >> indexShift_);
+  }
+  int calculateIndex(int64_t sequence) const {
+    return static_cast<int>(sequence) & indexMask_;
+  }
 
   int64_t minimumSequence(int64_t defaultMin) {
-    auto snap = gatingSequences_.load(std::memory_order_acquire);
-    if (!snap) {
-      return defaultMin;
+    // Optimization: Cache raw pointer to avoid shared_ptr atomic operations on
+    // hot path. gatingSequences_ is updated rarely (only when consumers are
+    // added/removed), but accessed frequently in next(). Use cached pointer for
+    // fast path.
+    auto *cached = gatingSequencesCache_;
+    if (!cached) {
+      // Fallback: reload if cache is null (initialization or after
+      // modifications)
+      auto snap = gatingSequences_.load(std::memory_order_acquire);
+      if (!snap) {
+        return defaultMin;
+      }
+      gatingSequencesCache_ = snap.get();
+      return disruptor::util::Util::getMinimumSequence(*snap, defaultMin);
     }
-    return disruptor::util::Util::getMinimumSequence(*snap, defaultMin);
+    return disruptor::util::Util::getMinimumSequence(*cached, defaultMin);
   }
 };
 
