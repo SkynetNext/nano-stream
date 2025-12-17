@@ -2,6 +2,7 @@
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/SequentialThreeConsumers.java
 
 #include "disruptor/dsl/Disruptor.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/util/DaemonThreadFactory.h"
 
 #include <cstdint>
@@ -36,7 +37,12 @@ public:
 int main() {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<MyEventFactory>();
-  disruptor::dsl::Disruptor<MyEvent> disruptor(factory, 1024, tf);
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<MyEvent, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(factory, 1024, tf, ws);
 
   CopyAtoB h1;
   CopyBtoC h2;

@@ -4,6 +4,7 @@
 // Java loops forever; C++ port runs a bounded number of iterations.
 
 #include "disruptor/EventTranslatorTwoArg.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/RingBuffer.h"
 #include "disruptor/dsl/Disruptor.h"
 #include "disruptor/util/DaemonThreadFactory.h"
@@ -43,7 +44,13 @@ int main() {
 
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<Factory>();
-  disruptor::dsl::Disruptor<disruptor_examples::longevent::LongEvent> disruptor(factory, bufferSize, tf);
+  using Event = disruptor_examples::longevent::LongEvent;
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<Event, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(factory, bufferSize, tf, ws);
 
   PrintHandler handler;
   disruptor.handleEventsWith(handler);

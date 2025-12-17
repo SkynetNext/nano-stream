@@ -2,6 +2,7 @@
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/objectevent/Main.java
 
 #include "disruptor/dsl/Disruptor.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/util/DaemonThreadFactory.h"
 
 #include <cstdint>
@@ -38,7 +39,13 @@ int main() {
   constexpr int bufferSize = 1024;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<Factory>();
-  disruptor::dsl::Disruptor<ObjectEvent<std::string>> disruptor(factory, bufferSize, tf);
+  using Event = ObjectEvent<std::string>;
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<Event, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(factory, bufferSize, tf, ws);
 
   ProcessingEventHandler<std::string> processing;
   ClearingEventHandler<std::string> clearing;

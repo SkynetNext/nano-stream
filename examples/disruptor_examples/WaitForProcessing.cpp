@@ -2,6 +2,7 @@
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/WaitForProcessing.java
 
 #include "disruptor/dsl/Disruptor.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/util/DaemonThreadFactory.h"
 
 #include "support/LongEvent.h"
@@ -20,16 +21,16 @@ public:
   void translateTo(disruptor_examples::support::LongEvent& event, int64_t sequence) override { event.set(sequence - 4); }
 };
 
-static void waitForRingBufferToBeIdle(disruptor::RingBuffer<disruptor_examples::support::LongEvent>& ringBuffer) {
+template <typename RingBufferT>
+static void waitForRingBufferToBeIdle(RingBufferT& ringBuffer) {
   while (ringBuffer.getBufferSize() - ringBuffer.remainingCapacity() != 0) {
     // Wait for processing...
     std::this_thread::yield();
   }
 }
 
-static void waitForSpecificConsumer(disruptor::dsl::Disruptor<disruptor_examples::support::LongEvent>& disruptor,
-                                    Consumer& lastConsumer,
-                                    disruptor::RingBuffer<disruptor_examples::support::LongEvent>& ringBuffer) {
+template <typename DisruptorT, typename RingBufferT>
+static void waitForSpecificConsumer(DisruptorT& disruptor, Consumer& lastConsumer, RingBufferT& ringBuffer) {
   int64_t lastPublishedValue;
   int64_t sequenceValueFor;
   do {
@@ -42,8 +43,13 @@ static void waitForSpecificConsumer(disruptor::dsl::Disruptor<disruptor_examples
 int main() {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
 
-  disruptor::dsl::Disruptor<disruptor_examples::support::LongEvent> disruptor(
-      disruptor_examples::support::LongEvent::FACTORY, 1024, tf);
+  using Event = disruptor_examples::support::LongEvent;
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<Event, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(Event::FACTORY, 1024, tf, ws);
 
   Consumer firstConsumer;
   Consumer lastConsumer;

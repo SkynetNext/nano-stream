@@ -2,6 +2,7 @@
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/HandleExceptionOnTranslate.java
 
 #include "disruptor/dsl/Disruptor.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/util/DaemonThreadFactory.h"
 
 #include "support/LongEvent.h"
@@ -31,8 +32,13 @@ public:
 int main() {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
 
-  disruptor::dsl::Disruptor<disruptor_examples::support::LongEvent> disruptor(
-      disruptor_examples::support::LongEvent::FACTORY, 1024, tf);
+  using Event = disruptor_examples::support::LongEvent;
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<Event, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(Event::FACTORY, 1024, tf, ws);
 
   MyHandler handler;
   disruptor.handleEventsWith(handler);

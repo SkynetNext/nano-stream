@@ -5,6 +5,7 @@
 // Java's sample loops forever; this C++ port runs a bounded number of publishes.
 
 #include "disruptor/ExceptionHandler.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/dsl/Disruptor.h"
 #include "disruptor/util/DaemonThreadFactory.h"
 
@@ -55,7 +56,12 @@ private:
 int main() {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<Factory>();
-  disruptor::dsl::Disruptor<Event> disruptor(factory, 1024, tf);
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<Event, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(factory, 1024, tf, ws);
 
   std::atomic<bool> running{true};
   ErrorHandler errorHandler(running);

@@ -2,6 +2,7 @@
 // reference/disruptor/src/examples/java/com/lmax/disruptor/examples/ThreeToOneDisruptor.java
 
 #include "disruptor/dsl/Disruptor.h"
+#include "disruptor/BlockingWaitStrategy.h"
 #include "disruptor/util/DaemonThreadFactory.h"
 
 #include <array>
@@ -43,7 +44,12 @@ public:
 
 int main() {
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  disruptor::dsl::Disruptor<DataEvent> disruptor(DataEvent::FACTORY, 1024, tf);
+  using WS = disruptor::BlockingWaitStrategy;
+  constexpr auto Producer = disruptor::dsl::ProducerType::MULTI;
+  using DisruptorT = disruptor::dsl::Disruptor<DataEvent, Producer, WS>;
+
+  WS ws;
+  DisruptorT disruptor(DataEvent::FACTORY, 1024, tf, ws);
 
   TransformingHandler handler1(0);
   TransformingHandler handler2(1);
