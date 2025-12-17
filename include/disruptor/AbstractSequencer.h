@@ -45,6 +45,9 @@ public:
   int64_t getCursor() const override { return cursor_.get(); }
   int getBufferSize() const { return bufferSize_; }
 
+  Sequence &cursorSequence() { return cursor_; }
+  const Sequence &cursorSequence() const { return cursor_; }
+
   void addGatingSequences(Sequence *const *gatingSequences, int count) {
     SequenceGroups::addSequences(*this, gatingSequences_, *this,
                                  gatingSequences, count);
