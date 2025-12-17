@@ -60,11 +60,11 @@ public:
   // DataProvider
   E &get(int64_t sequence) override { return elementAt(sequence); }
 
-  int64_t getCursor() const { return sequencer_->getCursor(); }
+  int64_t getCursor() const { return sequencer().getCursor(); }
 
   // RingBuffer-specific helpers from Java
   void addGatingSequences(Sequence *const *gatingSequences, int count) {
-    sequencer_->addGatingSequences(gatingSequences, count);
+    sequencer().addGatingSequences(gatingSequences, count);
   }
 
   void addGatingSequences(Sequence &gatingSequence) {
@@ -73,15 +73,15 @@ public:
   }
 
   int64_t getMinimumGatingSequence() {
-    return sequencer_->getMinimumSequence();
+    return sequencer().getMinimumSequence();
   }
 
   bool removeGatingSequence(Sequence &sequence) {
-    return sequencer_->removeGatingSequence(sequence);
+    return sequencer().removeGatingSequence(sequence);
   }
 
   auto newBarrier(Sequence *const *sequencesToTrack, int count) {
-    return sequencer_->newBarrier(sequencesToTrack, count);
+    return sequencer().newBarrier(sequencesToTrack, count);
   }
 
   // Java convenience overload: newBarrier() with no dependent sequences.
@@ -91,8 +91,8 @@ public:
   newPoller(Sequence *const *gatingSequences, int count) {
     auto pollerSequence = std::make_shared<Sequence>();
     return EventPoller<E, SequencerT>::newInstance(
-        *this, *sequencer_, std::move(pollerSequence),
-        sequencer_->cursorSequence(), gatingSequences, count);
+        *this, sequencer(), std::move(pollerSequence),
+        sequencer().cursorSequence(), gatingSequences, count);
   }
 
   std::shared_ptr<EventPoller<E, SequencerT>> newPoller() {
@@ -101,15 +101,15 @@ public:
 
   int getBufferSize() const { return bufferSize_; }
   bool hasAvailableCapacity(int requiredCapacity) {
-    return sequencer_->hasAvailableCapacity(requiredCapacity);
+    return sequencer().hasAvailableCapacity(requiredCapacity);
   }
-  int64_t remainingCapacity() { return sequencer_->remainingCapacity(); }
-  int64_t next() { return sequencer_->next(); }
-  int64_t next(int n) { return sequencer_->next(n); }
-  int64_t tryNext() { return sequencer_->tryNext(); }
-  int64_t tryNext(int n) { return sequencer_->tryNext(n); }
-  void publish(int64_t sequence) { sequencer_->publish(sequence); }
-  void publish(int64_t lo, int64_t hi) { sequencer_->publish(lo, hi); }
+  int64_t remainingCapacity() { return sequencer().remainingCapacity(); }
+  int64_t next() { return sequencer().next(); }
+  int64_t next(int n) { return sequencer().next(n); }
+  int64_t tryNext() { return sequencer().tryNext(); }
+  int64_t tryNext(int n) { return sequencer().tryNext(n); }
+  void publish(int64_t sequence) { sequencer().publish(sequence); }
+  void publish(int64_t lo, int64_t hi) { sequencer().publish(lo, hi); }
 
   // EventSink-like helpers
   void publishEvent(EventTranslator<E> &translator) {
@@ -240,6 +240,28 @@ public:
   // Java exposes a public constructor RingBuffer(EventFactory, Sequencer). This
   // is required by some tests (e.g. RingBufferWithAssertingStubTest) that
   // inject custom Sequencer implementations.
+  // Constructor accepting SequencerT by value (for non-movable sequencers).
+  RingBuffer(std::shared_ptr<EventFactory<E>> eventFactory,
+             SequencerT sequencer)
+      : indexMask_(sequencer.getBufferSize() - 1),
+        entries_(
+            static_cast<size_t>(sequencer.getBufferSize() + 2 * BUFFER_PAD)),
+        bufferSize_(sequencer.getBufferSize()),
+        sequencerValue_(std::move(sequencer)), usingValue_(true) {
+    if (!eventFactory) {
+      throw std::invalid_argument("eventFactory must not be null");
+    }
+    if (bufferSize_ < 1) {
+      throw std::invalid_argument("bufferSize must not be less than 1");
+    }
+    if ((bufferSize_ & (bufferSize_ - 1)) != 0) {
+      throw std::invalid_argument("bufferSize must be a power of 2");
+    }
+    fill(*eventFactory);
+  }
+
+  // Legacy constructor accepting unique_ptr (for backward compatibility with
+  // tests).
   RingBuffer(std::shared_ptr<EventFactory<E>> eventFactory,
              std::unique_ptr<SequencerT> sequencer)
       : indexMask_(sequencer->getBufferSize() - 1),
@@ -247,7 +269,7 @@ public:
             static_cast<size_t>(sequencer->getBufferSize() + 2 * BUFFER_PAD)),
         bufferSize_(sequencer->getBufferSize()),
         sequencerOwner_(std::move(sequencer)),
-        sequencer_(sequencerOwner_.get()) {
+        sequencerPtr_(sequencerOwner_.get()), usingValue_(false) {
     if (!eventFactory) {
       throw std::invalid_argument("eventFactory must not be null");
     }
@@ -283,8 +305,22 @@ private:
   int64_t indexMask_;
   std::vector<E> entries_;
   int bufferSize_;
+  // For value-based constructor: sequencer_ is stored by value.
+  // For unique_ptr-based constructor: sequencerOwner_ holds the sequencer,
+  // sequencer_ points to it.
   std::unique_ptr<SequencerT> sequencerOwner_;
-  SequencerT *sequencer_;
+  union {
+    SequencerT sequencerValue_;
+    SequencerT *sequencerPtr_;
+  };
+  bool usingValue_;
+
+  SequencerT &sequencer() {
+    return usingValue_ ? sequencerValue_ : *sequencerPtr_;
+  }
+  const SequencerT &sequencer() const {
+    return usingValue_ ? sequencerValue_ : *sequencerPtr_;
+  }
 };
 
 } // namespace disruptor

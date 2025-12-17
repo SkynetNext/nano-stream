@@ -35,11 +35,13 @@ public:
 } // namespace
 
 int main() {
+  using WS = disruptor::BlockingWaitStrategy;
+  using D = disruptor::dsl::Disruptor<disruptor_examples::longevent::LongEvent, disruptor::dsl::ProducerType::MULTI, WS>;
   constexpr int bufferSize = 1024;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<Factory>();
-
-  disruptor::dsl::Disruptor<disruptor_examples::longevent::LongEvent> disruptor(factory, bufferSize, tf);
+  WS ws;
+  D disruptor(factory, bufferSize, tf, ws);
   // No direct method reference equivalent; wrap with a handler.
   class Handler final : public disruptor::EventHandler<disruptor_examples::longevent::LongEvent> {
   public:

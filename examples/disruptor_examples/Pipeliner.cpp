@@ -61,8 +61,11 @@ private:
 } // namespace
 
 int main() {
+  using WS = disruptor::BlockingWaitStrategy;
+  using D = disruptor::dsl::Disruptor<PipelinerEvent, disruptor::dsl::ProducerType::MULTI, WS>;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  disruptor::dsl::Disruptor<PipelinerEvent> disruptor(PipelinerEvent::FACTORY, 1024, tf);
+  WS ws;
+  D disruptor(PipelinerEvent::FACTORY, 1024, tf, ws);
 
   ParallelHandler h0(0, 3);
   ParallelHandler h1(1, 3);

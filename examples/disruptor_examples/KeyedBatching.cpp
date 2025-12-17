@@ -56,7 +56,7 @@ int main() {
   auto &tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   auto factory = std::make_shared<KeyedEventFactory>();
   disruptor::dsl::Disruptor<KeyedEvent, disruptor::dsl::ProducerType::MULTI,
-                             disruptor::BlockingWaitStrategy>
+                            disruptor::BlockingWaitStrategy>
       d(factory, 1024, tf);
 
   KeyedBatching handler;

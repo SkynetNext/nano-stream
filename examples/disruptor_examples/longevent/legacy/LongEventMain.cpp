@@ -18,9 +18,13 @@
 #include <thread>
 
 namespace {
+using WS = disruptor::BlockingWaitStrategy;
+using Seq = disruptor::MultiProducerSequencer<WS>;
+using RB = disruptor::RingBuffer<disruptor_examples::longevent::LongEvent, Seq>;
+
 class LegacyProducer {
 public:
-  explicit LegacyProducer(disruptor::RingBuffer<disruptor_examples::longevent::LongEvent>& ringBuffer) : rb_(&ringBuffer) {}
+  explicit LegacyProducer(RB& ringBuffer) : rb_(&ringBuffer) {}
 
   void onData(disruptor_examples::longevent::ByteBuffer& bb) {
     int64_t sequence = rb_->next();
@@ -35,17 +39,20 @@ public:
   }
 
 private:
-  disruptor::RingBuffer<disruptor_examples::longevent::LongEvent>* rb_;
+  RB* rb_;
 };
 } // namespace
 
 int main() {
+  using WS = disruptor::BlockingWaitStrategy;
+  using D = disruptor::dsl::Disruptor<disruptor_examples::longevent::LongEvent, disruptor::dsl::ProducerType::MULTI, WS>;
   disruptor_examples::longevent::LongEventFactory factory;
   constexpr int bufferSize = 1024;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
 
   auto factoryPtr = std::make_shared<disruptor_examples::longevent::LongEventFactory>(factory);
-  disruptor::dsl::Disruptor<disruptor_examples::longevent::LongEvent> disruptor(factoryPtr, bufferSize, tf);
+  WS ws;
+  D disruptor(factoryPtr, bufferSize, tf, ws);
 
   disruptor_examples::longevent::LongEventHandler handler;
   disruptor.handleEventsWith(handler);

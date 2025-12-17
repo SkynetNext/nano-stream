@@ -78,9 +78,9 @@ public:
 
   Disruptor(std::shared_ptr<EventFactory<T>> eventFactory, int ringBufferSize,
             ThreadFactory &threadFactory, WaitStrategyT &waitStrategy)
-      : ownedWaitStrategy_(waitStrategy),
+      : ownedWaitStrategy_(),
         ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
-                                    ownedWaitStrategy_)),
+                                    waitStrategy)),
         threadFactory_(threadFactory), consumerRepository_(), started_(false),
         exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
 
@@ -88,9 +88,9 @@ private:
   static std::shared_ptr<RingBufferT>
   makeRingBuffer_(std::shared_ptr<EventFactory<T>> factory, int ringBufferSize,
                   WaitStrategyT &waitStrategy) {
-    auto seq = std::make_unique<SequencerT>(ringBufferSize, waitStrategy);
+    using Seq = SequencerT;
     return std::shared_ptr<RingBufferT>(
-        new RingBufferT(std::move(factory), std::move(seq)));
+        new RingBufferT(std::move(factory), Seq(ringBufferSize, waitStrategy)));
   }
 
 public:
