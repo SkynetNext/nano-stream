@@ -14,7 +14,7 @@ else()
 endif()
 
 # Create benchmark executable
-file(GLOB_RECURSE NANO_STREAM_JMH_BENCH_SOURCES
+file(GLOB_RECURSE NANO_STREAM_JMH_BENCH_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/jmh/*.cpp"
 )
 

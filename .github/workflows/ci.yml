@@ -133,9 +133,6 @@ jobs:
           cd ..
           echo "C++ benchmark file location: $(pwd)/benchmark_cpp.json"
           ls -lh benchmark_cpp.json
-          
-          # Also emit a JMH-like JSON for 1:1 comparison semantics.
-          python3 scripts/gb_to_jmh.py --in benchmark_cpp.json --out benchmark_cpp_jmh.json --prefer real_time
 
       - name: Extract C++ benchmark test names
         id: extract_cpp_tests
@@ -238,7 +235,6 @@ jobs:
           name: performance-comparison
           path: |
             benchmark_cpp.json
-            benchmark_cpp_jmh.json
             benchmark_java.json
             comparison_report.md
           if-no-files-found: ignore

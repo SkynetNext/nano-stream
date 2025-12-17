@@ -122,6 +122,14 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
     printf "| 1P1C publish (ring=1<<20) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_1P1C" "$JAVA_1P1C" "$RATIO" "$WINNER"
   fi
 
+  # TSF4G-tbus-inspired baseline (C++ only) vs Java Disruptor SPSC.
+  CPP_TBUS_SPSC=$(jq -r '.benchmarks[] | select(.name == "JMH_TBusSingleProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  if [ ! -z "$CPP_TBUS_SPSC" ] && [ ! -z "$JAVA_1P1C" ]; then
+    RATIO=$(awk_ratio "$CPP_TBUS_SPSC" "$JAVA_1P1C")
+    WINNER=$(winner_from_ratio "$RATIO" 2>/dev/null || true)
+    printf "| 1P1C publish (TSF4G tbus-style, SPSC) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_TBUS_SPSC" "$JAVA_1P1C" "$RATIO" "$WINNER"
+  fi
+
   CPP_MP1C=$(jq -r '.benchmarks[] | select(.name == "JMH_MultiProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
   JAVA_MP1C=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producing$")) |
       (.primaryMetric.score) as $s |
