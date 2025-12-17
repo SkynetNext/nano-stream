@@ -10,7 +10,8 @@ on:
 jobs:
   test:
     name: Test - Linux
-    runs-on: ubuntu-latest
+    # Pin to keep compiler availability stable (clang-18/gcc-13 are available on 24.04).
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         compiler: [gcc, clang]
@@ -25,17 +26,17 @@ jobs:
         if: matrix.compiler == 'gcc'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-11 g++-11
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+          sudo apt-get install -y gcc-13 g++-13
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
 
       - name: Setup Clang
         if: matrix.compiler == 'clang'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-14
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
+          sudo apt-get install -y clang-18
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
 
       - name: Install CMake
         uses: jwlawson/actions-setup-cmake@v1.14
@@ -85,7 +86,7 @@ jobs:
 
   benchmark-comparison:
     name: Performance Comparison - C++ vs Java Disruptor
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
@@ -124,7 +125,8 @@ jobs:
           ./benchmarks/nano_stream_benchmarks \
             --benchmark_format=json \
             --benchmark_out=../benchmark_cpp.json \
-            --benchmark_min_time=10.0 \
+            --benchmark_min_warmup_time=30s \
+            --benchmark_min_time=10s \
             --benchmark_filter=JMH_.*
           cd ..
           echo "C++ benchmark file location: $(pwd)/benchmark_cpp.json"
@@ -154,33 +156,27 @@ jobs:
         working-directory: reference/disruptor
         run: |
           chmod +x gradlew
-          ./gradlew build -x test
+          ./gradlew jmhJar --no-daemon
 
       - name: Run Java Disruptor JMH Benchmarks (typical production scenarios)
         working-directory: reference/disruptor
         run: |
-          # Typical production-style scenarios:
-          # - SingleProducerSingleConsumer: 1 producer + 1 consumer (consumer is managed by Disruptor) [AverageTime, ns]
-          # - MultiProducerSingleConsumer: 4 producers + 1 consumer (Disruptor-managed) [Throughput, ms]
-          # - BlockingQueueBenchmark: baseline using ArrayBlockingQueue + consumer thread [AverageTime, ns]
+          # Run ONLY typical aligned scenarios, using JMH's official CLI directly.
+          # This avoids Gradle-plugin argument forwarding issues and guarantees -wi/-i/-f filters work.
           #
-          # NOTE: do NOT force -bm or -t here; respect each benchmark's own annotations (@BenchmarkMode/@Threads).
-          ./gradlew jmh --no-daemon \
-            -Pjmh.args='-rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 3 -i 5 -include ".*SingleProducerSingleConsumer|.*MultiProducerSingleConsumer|.*BlockingQueueBenchmark"' || true
+          # Scenarios:
+          # - SingleProducerSingleConsumer
+          # - MultiProducerSingleConsumer
+          # - BlockingQueueBenchmark
+          #
+          # NOTE: We do NOT force -bm or -t here; respect each benchmark's own annotations.
+          java -jar build/libs/*-jmh.jar \
+            -rf json -rff ../../benchmark_java.json -foe true -v NORMAL \
+            -f 1 -wi 3 -i 5 \
+            ".*(SingleProducerSingleConsumer|MultiProducerSingleConsumer|BlockingQueueBenchmark).*"
 
-          # JMH writes to build/reports/jmh/result.json, always copy it to project root
-          JAVA_SOURCE="build/reports/jmh/result.json"
-          JAVA_TARGET="../../benchmark_java.json"
-
-          if [ -f "$JAVA_SOURCE" ]; then
-            cp "$JAVA_SOURCE" "$JAVA_TARGET"
-            echo "Copied Java benchmark from: $(pwd)/$JAVA_SOURCE"
-            echo "To: $(cd ../.. && pwd)/benchmark_java.json"
-            ls -lh "$JAVA_TARGET"
-          else
-            echo "ERROR: Java benchmark file not found at: $(pwd)/$JAVA_SOURCE"
-            find . -name "result.json" 2>/dev/null
-          fi
+          echo "Java benchmark file location: $(cd ../.. && pwd)/benchmark_java.json"
+          ls -lh ../../benchmark_java.json
 
       - name: Install jq for JSON parsing
         run: |
