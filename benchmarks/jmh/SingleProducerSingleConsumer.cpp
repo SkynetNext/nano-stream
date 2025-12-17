@@ -28,9 +28,16 @@ static void JMH_SingleProducerSingleConsumer_producing(benchmark::State& state) 
   d.handleEventsWith(handler);
   auto rb = d.start();
 
-  nano_stream::bench::jmh::SetZeroTranslator translator;
+  // 1:1 with Java benchmark body:
+  //   long sequence = ringBuffer.next();
+  //   SimpleEvent e = ringBuffer.get(sequence);
+  //   e.setValue(0);
+  //   ringBuffer.publish(sequence);
   for (auto _ : state) {
-    rb->publishEvent(translator);
+    const int64_t sequence = rb->next();
+    auto& e = rb->get(sequence);
+    e.value = 0;
+    rb->publish(sequence);
   }
   d.shutdown();
 }

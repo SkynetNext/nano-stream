@@ -7,36 +7,48 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <future>
 #include <mutex>
-#include <queue>
 #include <thread>
+#include <vector>
 
 namespace {
 // Java: reference/disruptor/src/jmh/java/com/lmax/disruptor/util/Constants.java
 constexpr int kRingBufferSize = 1 << 20;
 
-class BoundedQueue {
+// Java baseline uses ArrayBlockingQueue (fixed-size array + single lock).
+// We implement the same structure (bounded circular buffer) and expose:
+// - offer(e, timeout)
+// - poll() (non-blocking)
+//
+// IMPORTANT: Java benchmark repeatedly enqueues the SAME SimpleEvent instance; we mirror by storing pointers.
+class ArrayBlockingQueueLike {
 public:
-  explicit BoundedQueue(size_t capacity) : capacity_(capacity) {}
+  explicit ArrayBlockingQueueLike(size_t capacity)
+      : capacity_(capacity), buf_(capacity_, nullptr) {}
 
-  bool offer(const nano_stream::bench::jmh::SimpleEvent& e, std::chrono::nanoseconds timeout) {
+  bool offer(nano_stream::bench::jmh::SimpleEvent* e, std::chrono::nanoseconds timeout) {
     std::unique_lock<std::mutex> lk(mu_);
-    if (!cv_not_full_.wait_for(lk, timeout, [&] { return q_.size() < capacity_ || !running_; })) {
+    if (!cv_not_full_.wait_for(lk, timeout, [&] { return count_ < capacity_ || !running_; })) {
       return false;
     }
     if (!running_) return false;
-    q_.push(e);
+    buf_[tail_] = e;
+    tail_ = (tail_ + 1) % capacity_;
+    ++count_;
     cv_not_empty_.notify_one();
     return true;
   }
 
-  bool poll(nano_stream::bench::jmh::SimpleEvent& out) {
+  nano_stream::bench::jmh::SimpleEvent* poll() {
     std::lock_guard<std::mutex> lk(mu_);
-    if (q_.empty()) return false;
-    out = q_.front();
-    q_.pop();
+    if (count_ == 0) return nullptr;
+    auto* out = buf_[head_];
+    buf_[head_] = nullptr;
+    head_ = (head_ + 1) % capacity_;
+    --count_;
     cv_not_full_.notify_one();
-    return true;
+    return out;
   }
 
   void stop() {
@@ -52,34 +64,40 @@ private:
   std::mutex mu_;
   std::condition_variable cv_not_empty_;
   std::condition_variable cv_not_full_;
-  std::queue<nano_stream::bench::jmh::SimpleEvent> q_;
-  size_t capacity_;
+  size_t capacity_{0};
+  std::vector<nano_stream::bench::jmh::SimpleEvent*> buf_;
+  size_t head_{0};
+  size_t tail_{0};
+  size_t count_{0};
   bool running_{true};
 };
 } // namespace
 
-// 1:1-ish baseline with Java:
+// 1:1 with Java:
 // reference/disruptor/src/jmh/java/com/lmax/disruptor/BlockingQueueBenchmark.java
 static void JMH_BlockingQueueBenchmark_producing(benchmark::State& state) {
-  BoundedQueue q(static_cast<size_t>(kRingBufferSize));
-  std::atomic<bool> consumerRunning{true};
+  ArrayBlockingQueueLike q(static_cast<size_t>(kRingBufferSize));
+  std::atomic<bool> consumerRunning{true}; // mirrors Java volatile boolean
+  std::promise<void> started;
+  auto started_f = started.get_future();
 
   std::thread consumer([&] {
-    nano_stream::bench::jmh::SimpleEvent tmp{};
+    started.set_value();
     while (consumerRunning.load(std::memory_order_acquire)) {
-      if (q.poll(tmp)) {
-        benchmark::DoNotOptimize(tmp.value);
-      } else {
-        std::this_thread::yield();
-      }
+      auto* ev = q.poll();
+      if (ev != nullptr) benchmark::DoNotOptimize(ev->value);
     }
   });
 
+  // Wait for consumer thread to start (CountDownLatch analogue).
+  started_f.wait();
+
+  // Java reuses the same SimpleEvent instance for all offers.
   nano_stream::bench::jmh::SimpleEvent e{};
   e.value = 0;
 
   for (auto _ : state) {
-    if (!q.offer(e, std::chrono::seconds(1))) {
+    if (!q.offer(&e, std::chrono::seconds(1))) {
       state.SkipWithError("Queue full, benchmark should not experience backpressure");
       break;
     }

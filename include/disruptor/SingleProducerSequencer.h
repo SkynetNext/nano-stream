@@ -31,9 +31,13 @@ public:
 
   int64_t next(int n) override {
     // Java: assert sameThread() when assertions enabled. We keep a debug check.
+    // IMPORTANT: This must be debug-only. A per-call mutex/map check destroys SPSC performance and
+    // Java only performs this when assertions are enabled.
+#ifndef NDEBUG
     if (!sameThread()) {
       throw std::runtime_error("Accessed by two threads - use ProducerType.MULTI!");
     }
+#endif
     if (n < 1 || n > bufferSize_) {
       throw std::invalid_argument("n must be > 0 and < bufferSize");
     }
@@ -134,6 +138,9 @@ private:
 
   // Java-only debug assertion; best-effort in C++.
   bool sameThread() {
+#ifdef NDEBUG
+    return true;
+#else
     static std::mutex m;
     static std::unordered_map<const SingleProducerSequencer*, std::thread::id> producers;
     std::lock_guard<std::mutex> lock(m);
@@ -144,6 +151,7 @@ private:
       return true;
     }
     return it->second == tid;
+#endif
   }
 };
 
