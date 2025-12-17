@@ -152,16 +152,17 @@ jobs:
           chmod +x gradlew
           ./gradlew build -x test
 
-      - name: Run Java Disruptor JMH Benchmarks (filtered to match C++ tests)
+      - name: Run Java Disruptor JMH Benchmarks (typical production scenarios)
         working-directory: reference/disruptor
         run: |
-          # Run only core benchmarks that match C++ tests:
-          # - SequenceBenchmark (matches BM_Sequence*)
-          # - RingBufferBenchmark (matches BM_RingBuffer*)
-          # - SingleProducerSingleConsumer (matches BM_RingBufferProducerConsumer)
-          # JMH uses regex for -include, separate patterns with |
+          # Typical production-style scenarios:
+          # - SingleProducerSingleConsumer: 1 producer + 1 consumer (consumer is managed by Disruptor) [AverageTime, ns]
+          # - MultiProducerSingleConsumer: 4 producers + 1 consumer (Disruptor-managed) [Throughput, ms]
+          # - BlockingQueueBenchmark: baseline using ArrayBlockingQueue + consumer thread [AverageTime, ns]
+          #
+          # NOTE: do NOT force -bm or -t here; respect each benchmark's own annotations (@BenchmarkMode/@Threads).
           ./gradlew jmh --no-daemon \
-            -Pjmh.args='-rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 1 -i 3 -t 1 -bm thrpt -include ".*SequenceBenchmark|.*RingBufferBenchmark|.*SingleProducerSingleConsumer"' || true
+            -Pjmh.args='-rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 3 -i 5 -include ".*SingleProducerSingleConsumer|.*MultiProducerSingleConsumer|.*BlockingQueueBenchmark"' || true
 
           # JMH writes to build/reports/jmh/result.json, always copy it to project root
           JAVA_SOURCE="build/reports/jmh/result.json"

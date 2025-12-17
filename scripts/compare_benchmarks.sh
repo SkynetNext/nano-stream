@@ -115,21 +115,30 @@ if [ -f "$JAVA_FILE" ]; then
   echo ""
   
   if command -v jq &> /dev/null; then
-    echo "| Benchmark | Throughput (ops/sec) | Score |"
-    echo "|-----------|---------------------|-------|"
+    echo "| Benchmark | Mode | Score (raw) | Score (normalized) |"
+    echo "|-----------|------|-------------|--------------------|"
     
     # JMH JSON format: array of objects, each has .benchmark and .primaryMetric.score
     # Filter to only throughput tests and core benchmarks matching C++ tests
-    jq -r '.[] | 
-      select(.mode == "thrpt") |
-      select(.benchmark | test("SequenceBenchmark|RingBufferBenchmark|SingleProducerSingleConsumer")) |
-      (.primaryMetric.score * (
-        if .primaryMetric.scoreUnit == "ops/us" then 1000000
-        elif .primaryMetric.scoreUnit == "ops/ms" then 1000
-        elif .primaryMetric.scoreUnit == "ops/s" then 1
-        else 1 end
-      )) as $ops_per_sec |
-      "| \(.benchmark) | \($ops_per_sec) | \(.primaryMetric.score) \(.primaryMetric.scoreUnit) |"' \
+    jq -r '.[] |
+      select(.benchmark | test("SingleProducerSingleConsumer|SequenceBenchmark|RingBufferBenchmark")) |
+      .primaryMetric.score as $score |
+      .primaryMetric.scoreUnit as $unit |
+      (if $unit == "ops/us" then ($score * 1000000)
+       elif $unit == "ops/ms" then ($score * 1000)
+       elif $unit == "ops/s" then $score
+       elif $unit == "ns/op" then (1000000000 / $score)
+       elif $unit == "us/op" then (1000000 / $score)
+       elif $unit == "ms/op" then (1000 / $score)
+       else null end) as $normalized |
+      (if $unit == "ns/op" then "ops/s (derived)"
+       elif $unit == "us/op" then "ops/s (derived)"
+       elif $unit == "ms/op" then "ops/s (derived)"
+       elif $unit == "ops/us" then "ops/s"
+       elif $unit == "ops/ms" then "ops/s"
+       elif $unit == "ops/s" then "ops/s"
+       else "n/a" end) as $normalized_unit |
+      "| \(.benchmark) | \(.mode) | \($score) \($unit) | \(if $normalized == null then "n/a" else ($normalized|tostring) end) \($normalized_unit) |"' \
       "$JAVA_FILE" | head -30
   else
     echo "\`\`\`json"
@@ -199,22 +208,64 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
     fi
   fi
   
-  # RingBuffer - C++ uses BM_RingBufferSingleProducer/1024, Java uses RingBufferUnsafe
-  CPP_RB=$(jq -r '.benchmarks[] | select(.name | test("BM_RingBufferSingleProducer/1024")) | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
-  JAVA_RB=$(jq -r '.[] | select(.benchmark | test("RingBufferBenchmark\\.RingBufferUnsafe$")) | (.primaryMetric.score * (if .primaryMetric.scoreUnit == "ops/us" then 1000000 else 1 end))' "$JAVA_FILE" 2>/dev/null | head -1)
-  
-  if [ ! -z "$CPP_RB" ] && [ ! -z "$JAVA_RB" ] && [ "$(echo "$JAVA_RB > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_RB > 0" | bc -l 2>/dev/null)" = "1" ]; then
-    RATIO=$(echo "scale=2; $CPP_RB / $JAVA_RB" | bc -l 2>/dev/null)
-    if [ ! -z "$RATIO" ] && [ "$(echo "$RATIO > 0" | bc -l 2>/dev/null)" = "1" ]; then
-      WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
-      printf "| RingBuffer (Single Producer) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_RB" "$JAVA_RB" "$RATIO" "$WINNER"
-    fi
+  # Typical production scenarios (aligned):
+  #
+  # - SingleProducerSingleConsumer.producing (JMH avgt, ns/op) <-> BM_Typical_SingleProducerSingleConsumer (Google Benchmark)
+  # - MultiProducerSingleConsumer.producing (JMH thrpt, ops/ms) <-> BM_Typical_MultiProducerSingleConsumer (Google Benchmark, 4 producers + 1 consumer thread)
+  # - MultiProducerSingleConsumer.producingBatch (JMH thrpt, ops/ms, batch=100) <-> BM_Typical_MultiProducerSingleConsumerBatch
+
+  CPP_1P1C=$(jq -r '.benchmarks[] | select(.name == "BM_Typical_SingleProducerSingleConsumer") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  JAVA_1P1C=$(jq -r '.[] | select(.benchmark | test("SingleProducerSingleConsumer\\.producing$")) |
+      (.primaryMetric.score) as $s |
+      (.primaryMetric.scoreUnit) as $u |
+      (if $u == "ns/op" then (1000000000 / $s)
+       elif $u == "us/op" then (1000000 / $s)
+       elif $u == "ms/op" then (1000 / $s)
+       elif $u == "ops/us" then ($s * 1000000)
+       elif $u == "ops/ms" then ($s * 1000)
+       elif $u == "ops/s" then $s
+       else 0 end)' "$JAVA_FILE" 2>/dev/null | head -1)
+
+  if [ ! -z "$CPP_1P1C" ] && [ ! -z "$JAVA_1P1C" ] && [ "$(echo "$JAVA_1P1C > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_1P1C > 0" | bc -l 2>/dev/null)" = "1" ]; then
+    RATIO=$(echo "scale=2; $CPP_1P1C / $JAVA_1P1C" | bc -l 2>/dev/null)
+    WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
+    printf "| 1P1C publish (ring=1<<20) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_1P1C" "$JAVA_1P1C" "$RATIO" "$WINNER"
+  fi
+
+  CPP_MP1C=$(jq -r '.benchmarks[] | select(.name == "BM_Typical_MultiProducerSingleConsumer") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  JAVA_MP1C=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producing$")) |
+      (.primaryMetric.score) as $s |
+      (.primaryMetric.scoreUnit) as $u |
+      (if $u == "ops/ms" then ($s * 1000)
+       elif $u == "ops/us" then ($s * 1000000)
+       elif $u == "ops/s" then $s
+       else 0 end)' "$JAVA_FILE" 2>/dev/null | head -1)
+
+  if [ ! -z "$CPP_MP1C" ] && [ ! -z "$JAVA_MP1C" ] && [ "$(echo "$JAVA_MP1C > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_MP1C > 0" | bc -l 2>/dev/null)" = "1" ]; then
+    RATIO=$(echo "scale=2; $CPP_MP1C / $JAVA_MP1C" | bc -l 2>/dev/null)
+    WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
+    printf "| MP1C publish (P=4, ring=1<<22) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_MP1C" "$JAVA_MP1C" "$RATIO" "$WINNER"
+  fi
+
+  CPP_MP1C_BATCH=$(jq -r '.benchmarks[] | select(.name == "BM_Typical_MultiProducerSingleConsumerBatch") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  JAVA_MP1C_BATCH=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producingBatch$")) |
+      (.primaryMetric.score) as $s |
+      (.primaryMetric.scoreUnit) as $u |
+      (if $u == "ops/ms" then ($s * 1000)
+       elif $u == "ops/us" then ($s * 1000000)
+       elif $u == "ops/s" then $s
+       else 0 end)' "$JAVA_FILE" 2>/dev/null | head -1)
+
+  if [ ! -z "$CPP_MP1C_BATCH" ] && [ ! -z "$JAVA_MP1C_BATCH" ] && [ "$(echo "$JAVA_MP1C_BATCH > 0" | bc -l 2>/dev/null)" = "1" ] && [ "$(echo "$CPP_MP1C_BATCH > 0" | bc -l 2>/dev/null)" = "1" ]; then
+    RATIO=$(echo "scale=2; $CPP_MP1C_BATCH / $JAVA_MP1C_BATCH" | bc -l 2>/dev/null)
+    WINNER=$([ "$(echo "$RATIO > 1" | bc -l 2>/dev/null)" = "1" ] && echo "C++" || echo "Java")
+    printf "| MP1C batch publish (P=4, batch=100) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_MP1C_BATCH" "$JAVA_MP1C_BATCH" "$RATIO" "$WINNER"
   fi
   
   echo ""
   echo "### Analysis Notes"
   echo ""
-  echo "- **Latency**: Lower is better. C++ shows sub-nanosecond latency for basic operations."
+  echo "- **Latency vs Throughput**: JMH may report either throughput (ops/...) or average time (ns/op). This report prints both raw and a normalized ops/s when possible."
   echo "- **Throughput**: Higher is better. Both implementations show excellent performance."
   echo "- **Ratio > 1**: C++ is faster. **Ratio < 1**: Java is faster."
   echo ""
