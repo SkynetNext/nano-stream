@@ -13,22 +13,11 @@
 
 namespace nano_stream::bench::jmh {
 
-constexpr int kMeasurementRepetitions = 5;
-// Match Java JMH defaults used in CI:
-//   Warmup:      -wi 3  (3 iterations)
-//   Warmup time: 10 s each  => 30 s total
-//   Measure:     -i 5   (5 iterations)
-//   Measure time: 10 s each => use MinTime(10s) with Repetitions(5)
-//
-// NOTE: Google Benchmark's warmup is a single duration, not iteration-based.
-constexpr double kMinWarmupTimeSeconds = 30.0;
-constexpr double kMinTimeSeconds = 10.0;
-
 inline benchmark::internal::Benchmark* applyJmhDefaults(benchmark::internal::Benchmark* b) {
-  return b->MinWarmUpTime(kMinWarmupTimeSeconds)
-      ->MinTime(kMinTimeSeconds)
-      ->Repetitions(kMeasurementRepetitions)
-      ->ReportAggregatesOnly(true);
+  // Keep the benchmark registration free of timing/repetition policy so that:
+  // - Local runs can quickly override via CLI flags
+  // - CI can enforce strict JMH-like policy via CLI flags
+  return b->ReportAggregatesOnly(true);
 }
 
 } // namespace nano_stream::bench::jmh

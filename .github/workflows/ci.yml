@@ -125,8 +125,10 @@ jobs:
           ./benchmarks/nano_stream_benchmarks \
             --benchmark_format=json \
             --benchmark_out=../benchmark_cpp.json \
-            --benchmark_min_warmup_time=30s \
+            --benchmark_min_warmup_time=30 \
             --benchmark_min_time=10s \
+            --benchmark_repetitions=5 \
+            --benchmark_report_aggregates_only=true \
             --benchmark_filter=JMH_.*
           cd ..
           echo "C++ benchmark file location: $(pwd)/benchmark_cpp.json"
