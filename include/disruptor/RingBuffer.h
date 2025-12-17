@@ -107,14 +107,14 @@ public:
   void publish(int64_t sequence) { sequencer_.publish(sequence); }
   void publish(int64_t lo, int64_t hi) { sequencer_.publish(lo, hi); }
 
-  // EventSink core helpers
-  void publishEvent(EventTranslator<E> &translator) override {
+  // EventSink-like helpers
+  void publishEvent(EventTranslator<E> &translator) {
     int64_t sequence = next();
     translator.translateTo(get(sequence), sequence);
     publish(sequence);
   }
 
-  bool tryPublishEvent(EventTranslator<E> &translator) override {
+  bool tryPublishEvent(EventTranslator<E> &translator) {
     if (!hasAvailableCapacity(1)) {
       return false;
     }
@@ -125,14 +125,14 @@ public:
   }
 
   void publishEvent(EventTranslatorVararg<E> &translator,
-                    const std::vector<void *> &args) override {
+                    const std::vector<void *> &args) {
     int64_t sequence = next();
     translator.translateTo(get(sequence), sequence, args);
     publish(sequence);
   }
 
   bool tryPublishEvent(EventTranslatorVararg<E> &translator,
-                       const std::vector<void *> &args) override {
+                       const std::vector<void *> &args) {
     if (!hasAvailableCapacity(1)) {
       return false;
     }
@@ -191,12 +191,12 @@ public:
     return true;
   }
 
-  void publishEvents(std::vector<EventTranslator<E> *> &translators) override {
+  void publishEvents(std::vector<EventTranslator<E> *> &translators) {
     publishEvents(translators, 0, static_cast<int>(translators.size()));
   }
 
   void publishEvents(std::vector<EventTranslator<E> *> &translators,
-                     int batchStartsAt, int batchSize) override {
+                     int batchStartsAt, int batchSize) {
     if (batchSize == 0) {
       return;
     }
@@ -216,14 +216,13 @@ public:
     publish(initialSequence, finalSequence);
   }
 
-  bool
-  tryPublishEvents(std::vector<EventTranslator<E> *> &translators) override {
+  bool tryPublishEvents(std::vector<EventTranslator<E> *> &translators) {
     return tryPublishEvents(translators, 0,
                             static_cast<int>(translators.size()));
   }
 
   bool tryPublishEvents(std::vector<EventTranslator<E> *> &translators,
-                        int batchStartsAt, int batchSize) override {
+                        int batchStartsAt, int batchSize) {
     if (batchSize == 0) {
       return true;
     }
