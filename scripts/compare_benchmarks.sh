@@ -27,8 +27,13 @@ winner_from_ratio() {
 echo "## Test Environment"
 echo ""
 
-# Extract hardware information from C++ benchmark JSON (preferred) and OS tools (fallback).
-if [ -f "$CPP_FILE" ] && command -v jq &> /dev/null && jq -e '.context' "$CPP_FILE" > /dev/null 2>&1; then
+HAVE_JQ=0
+if command -v jq &> /dev/null; then
+  HAVE_JQ=1
+fi
+
+# Extract hardware information from C++ benchmark JSON.
+if [ -f "$CPP_FILE" ] && [ "$HAVE_JQ" -eq 1 ] && jq -e '.context' "$CPP_FILE" > /dev/null 2>&1; then
   echo "### Hardware Information"
   echo ""
   jq -r '.context |
@@ -46,8 +51,42 @@ if [ -f "$CPP_FILE" ] && command -v jq &> /dev/null && jq -e '.context' "$CPP_FI
   jq -r '.context.caches[]? |
     "| Level \(.level) \(.type) Cache | \(.size) bytes (shared by \(.num_sharing) cores) |"' "$CPP_FILE" 2>/dev/null | head -10 || true
   echo ""
+elif [ -f "$CPP_FILE" ]; then
+  # Fallback without jq (Windows/Git Bash friendly): use python to print the same tables.
+  python - "$CPP_FILE" <<'PY' || true
+import json, sys
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as f:
+    d = json.load(f)
+ctx = d.get("context", {}) or {}
+print("### Hardware Information\n")
+print("| Property | Value |")
+print("|----------|-------|")
+print(f"| Host | {ctx.get('host_name','N/A')} |")
+print(f"| CPU Cores | {ctx.get('num_cpus','N/A')} |")
+mhz = ctx.get("mhz_per_cpu","N/A")
+print(f"| CPU Frequency | {mhz} MHz |")
+cpu_scaling = ctx.get("cpu_scaling_enabled", None)
+aslr = ctx.get("aslr_enabled", None)
+if cpu_scaling is None: cpu_scaling = ctx.get("cpu_scaling", None)
+if aslr is None: aslr = ctx.get("aslr", None)
+def yn(v):
+    if v is None: return "N/A"
+    return "Enabled" if bool(v) else "Disabled"
+print(f"| CPU Scaling | {yn(cpu_scaling)} |")
+print(f"| ASLR | {yn(aslr)} |")
+print("\n### Cache Information\n")
+caches = ctx.get("caches", []) or []
+for c in caches[:10]:
+    lvl = c.get("level","?")
+    typ = c.get("type","?")
+    size = c.get("size","?")
+    share = c.get("num_sharing","?")
+    print(f"| Level {lvl} {typ} Cache | {size} bytes (shared by {share} cores) |")
+print("")
+PY
 else
-  echo "> C++ benchmark context not available (missing \`$CPP_FILE\` or \`jq\`)."
+  echo "> C++ benchmark context not available (missing \`$CPP_FILE\`)."
   echo ""
 fi
 
@@ -88,7 +127,7 @@ if [ ! -f "$JAVA_FILE" ] && [ -f "reference/disruptor/build/reports/jmh/result.j
 fi
 
 # Performance Analysis and Comparison
-if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
+if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && [ "$HAVE_JQ" -eq 1 ]; then
   echo "## Performance Analysis & Comparison"
   echo ""
   
@@ -104,7 +143,58 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   # - MultiProducerSingleConsumer.producing (JMH thrpt, ops/ms) <-> Typical_MultiProducerSingleConsumer (Google Benchmark, 4 producer benchmark threads; consumer is background)
   # - MultiProducerSingleConsumer.producingBatch (JMH thrpt, ops/ms, batch=100) <-> Typical_MultiProducerSingleConsumerBatch (same measurement scope as above)
 
-  CPP_1P1C=$(jq -r '.benchmarks[] | select(.name == "JMH_SingleProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  # C++ Google Benchmark output is aggregate entries:
+  #   run_name = base benchmark name
+  #   aggregate_name = mean/median/stddev/cv
+  # For avgt-style benchmarks we convert mean ns/op to ops/s.
+  cpp_mean_ops_per_sec_from_ns() {
+    # Usage: cpp_mean_ops_per_sec_from_ns <run_name> [threads]
+    local run_name="$1"
+    local threads="${2:-}"
+    if [ -n "$threads" ]; then
+      jq -r --arg n "$run_name" --argjson t "$threads" '
+        .benchmarks[]
+        | select(.run_type=="aggregate" and .run_name==$n and .aggregate_name=="mean" and .threads==$t)
+        | (if .time_unit=="ns" then (1000000000.0 / .real_time)
+           elif .time_unit=="us" then (1000000.0 / .real_time)
+           elif .time_unit=="ms" then (1000.0 / .real_time)
+           elif .time_unit=="s"  then (1.0 / .real_time)
+           else empty end)
+      ' "$CPP_FILE" 2>/dev/null | head -1
+    else
+      jq -r --arg n "$run_name" '
+        .benchmarks[]
+        | select(.run_type=="aggregate" and .run_name==$n and .aggregate_name=="mean")
+        | (if .time_unit=="ns" then (1000000000.0 / .real_time)
+           elif .time_unit=="us" then (1000000.0 / .real_time)
+           elif .time_unit=="ms" then (1000.0 / .real_time)
+           elif .time_unit=="s"  then (1.0 / .real_time)
+           else empty end)
+      ' "$CPP_FILE" 2>/dev/null | head -1
+    fi
+  }
+
+  cpp_mean_items_per_second() {
+    # Usage: cpp_mean_items_per_second <run_name> [threads]
+    # Prefer items_per_second if present (Google Benchmark emits it when SetItemsProcessed is used).
+    local run_name="$1"
+    local threads="${2:-}"
+    if [ -n "$threads" ]; then
+      jq -r --arg n "$run_name" --argjson t "$threads" '
+        .benchmarks[]
+        | select(.run_type=="aggregate" and .run_name==$n and .aggregate_name=="mean" and .threads==$t)
+        | ( .items_per_second? // .counters.items_per_second? // empty )
+      ' "$CPP_FILE" 2>/dev/null | head -1
+    else
+      jq -r --arg n "$run_name" '
+        .benchmarks[]
+        | select(.run_type=="aggregate" and .run_name==$n and .aggregate_name=="mean")
+        | ( .items_per_second? // .counters.items_per_second? // empty )
+      ' "$CPP_FILE" 2>/dev/null | head -1
+    fi
+  }
+
+  CPP_1P1C=$(cpp_mean_ops_per_sec_from_ns "JMH_SingleProducerSingleConsumer_producing")
   JAVA_1P1C=$(jq -r '.[] | select(.benchmark | test("SingleProducerSingleConsumer\\.producing$")) |
       (.primaryMetric.score) as $s |
       (.primaryMetric.scoreUnit) as $u |
@@ -123,14 +213,15 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   fi
 
   # TSF4G-tbus-inspired baseline (C++ only) vs Java Disruptor SPSC.
-  CPP_TBUS_SPSC=$(jq -r '.benchmarks[] | select(.name == "JMH_TBusSingleProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  CPP_TBUS_SPSC=$(cpp_mean_ops_per_sec_from_ns "JMH_TBusSingleProducerSingleConsumer_producing")
   if [ ! -z "$CPP_TBUS_SPSC" ] && [ ! -z "$JAVA_1P1C" ]; then
     RATIO=$(awk_ratio "$CPP_TBUS_SPSC" "$JAVA_1P1C")
     WINNER=$(winner_from_ratio "$RATIO" 2>/dev/null || true)
     printf "| 1P1C publish (TSF4G tbus-style, SPSC) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_TBUS_SPSC" "$JAVA_1P1C" "$RATIO" "$WINNER"
   fi
 
-  CPP_MP1C=$(jq -r '.benchmarks[] | select(.name == "JMH_MultiProducerSingleConsumer_producing") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  # C++ MP1C producing is avgt ns/op (with Threads=4); convert to ops/s.
+  CPP_MP1C=$(cpp_mean_ops_per_sec_from_ns "JMH_MultiProducerSingleConsumer_producing" 4)
   JAVA_MP1C=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producing$")) |
       (.primaryMetric.score) as $s |
       (.primaryMetric.scoreUnit) as $u |
@@ -145,7 +236,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
     printf "| MP1C publish (P=4, ring=1<<22) | %.2e ops/s | %.2e ops/s | %.2fx | **%s** |\n" "$CPP_MP1C" "$JAVA_MP1C" "$RATIO" "$WINNER"
   fi
 
-  CPP_MP1C_BATCH=$(jq -r '.benchmarks[] | select(.name == "JMH_MultiProducerSingleConsumer_producingBatch") | .items_per_second' "$CPP_FILE" 2>/dev/null | head -1)
+  CPP_MP1C_BATCH=$(cpp_mean_items_per_second "JMH_MultiProducerSingleConsumer_producingBatch" 4)
   JAVA_MP1C_BATCH=$(jq -r '.[] | select(.benchmark | test("MultiProducerSingleConsumer\\.producingBatch$")) |
       (.primaryMetric.score) as $s |
       (.primaryMetric.scoreUnit) as $u |
@@ -167,6 +258,106 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && command -v jq &> /dev/null; then
   echo "- **Units**: Java avgt (ns/op) is converted to ops/s; Java thrpt is converted to ops/s."
   echo "- **Ratio**: >1 means C++ higher ops/s; <1 means Java higher ops/s."
   echo ""
+fi
+
+# Python fallback when jq is not available (common on Windows Git Bash).
+if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && [ "$HAVE_JQ" -eq 0 ]; then
+  python - "$CPP_FILE" "$JAVA_FILE" <<'PY'
+import json, sys, math
+cpp_path, java_path = sys.argv[1], sys.argv[2]
+cpp = json.load(open(cpp_path, "r", encoding="utf-8"))
+java = json.load(open(java_path, "r", encoding="utf-8"))
+
+def java_to_ops_per_sec(entry):
+    s = float(entry["primaryMetric"]["score"])
+    u = entry["primaryMetric"]["scoreUnit"]
+    if u == "ns/op": return 1e9 / s
+    if u == "us/op": return 1e6 / s
+    if u == "ms/op": return 1e3 / s
+    if u == "ops/us": return s * 1e6
+    if u == "ops/ms": return s * 1e3
+    if u == "ops/s": return s
+    return None
+
+def find_java(endswith):
+    for e in java:
+        if e.get("benchmark","").endswith(endswith):
+            return java_to_ops_per_sec(e)
+    return None
+
+def cpp_mean_ns(run_name, threads=None):
+    for b in cpp.get("benchmarks", []):
+        if b.get("run_type") != "aggregate": continue
+        if b.get("run_name") != run_name: continue
+        if b.get("aggregate_name") != "mean": continue
+        if threads is not None and int(b.get("threads",0)) != int(threads): continue
+        t = float(b.get("real_time", 0.0))
+        unit = b.get("time_unit","ns")
+        if unit == "ns": return t
+        if unit == "us": return t * 1e3
+        if unit == "ms": return t * 1e6
+        if unit == "s":  return t * 1e9
+    return None
+
+def cpp_mean_ops_per_sec(run_name, threads=None):
+    ns = cpp_mean_ns(run_name, threads)
+    if ns is None or ns <= 0: return None
+    return 1e9 / ns
+
+def cpp_mean_items_per_sec(run_name, threads=None):
+    for b in cpp.get("benchmarks", []):
+        if b.get("run_type") != "aggregate": continue
+        if b.get("run_name") != run_name: continue
+        if b.get("aggregate_name") != "mean": continue
+        if threads is not None and int(b.get("threads",0)) != int(threads): continue
+        if "items_per_second" in b and b["items_per_second"] is not None:
+            return float(b["items_per_second"])
+        counters = b.get("counters") or {}
+        v = counters.get("items_per_second")
+        if v is not None: return float(v)
+    return None
+
+def ratio(cpp_v, java_v):
+    if not cpp_v or not java_v: return None
+    return cpp_v / java_v
+
+def winner(r):
+    if r is None: return ""
+    return "C++" if r > 1.0 else "Java"
+
+print("## Performance Analysis & Comparison\n")
+print("### Key Performance Metrics\n")
+print("| Operation | C++ (Nano-Stream) | Java (Disruptor) | C++/Java Ratio | Winner |")
+print("|-----------|-------------------|------------------|----------------|--------|")
+
+java_spsc = find_java("SingleProducerSingleConsumer.producing")
+cpp_spsc = cpp_mean_ops_per_sec("JMH_SingleProducerSingleConsumer_producing")
+if cpp_spsc and java_spsc:
+    r = ratio(cpp_spsc, java_spsc)
+    print(f"| 1P1C publish (ring=1<<20) | {cpp_spsc:.2e} ops/s | {java_spsc:.2e} ops/s | {r:.2f}x | **{winner(r)}** |")
+
+cpp_tbus = cpp_mean_ops_per_sec("JMH_TBusSingleProducerSingleConsumer_producing")
+if cpp_tbus and java_spsc:
+    r = ratio(cpp_tbus, java_spsc)
+    print(f"| 1P1C publish (TSF4G tbus-style, SPSC) | {cpp_tbus:.2e} ops/s | {java_spsc:.2e} ops/s | {r:.2f}x | **{winner(r)}** |")
+
+java_mp1c = find_java("MultiProducerSingleConsumer.producing")
+cpp_mp1c = cpp_mean_ops_per_sec("JMH_MultiProducerSingleConsumer_producing", threads=4)
+if cpp_mp1c and java_mp1c:
+    r = ratio(cpp_mp1c, java_mp1c)
+    print(f"| MP1C publish (P=4, ring=1<<22) | {cpp_mp1c:.2e} ops/s | {java_mp1c:.2e} ops/s | {r:.2f}x | **{winner(r)}** |")
+
+java_mp1c_b = find_java("MultiProducerSingleConsumer.producingBatch")
+cpp_mp1c_b = cpp_mean_items_per_sec("JMH_MultiProducerSingleConsumer_producingBatch", threads=4)
+if cpp_mp1c_b and java_mp1c_b:
+    r = ratio(cpp_mp1c_b, java_mp1c_b)
+    print(f"| MP1C batch publish (P=4, batch=100) | {cpp_mp1c_b:.2e} ops/s | {java_mp1c_b:.2e} ops/s | {r:.2f}x | **{winner(r)}** |")
+
+print("\n### Analysis Notes\n")
+print("- **Scope**: These comparisons are limited to aligned scenarios (SPSC, MP1C, MP1C batch).")
+print("- **Units**: Java avgt (ns/op) is converted to ops/s; Java thrpt is converted to ops/s.")
+print("- **Ratio**: >1 means C++ higher ops/s; <1 means Java higher ops/s.\n")
+PY
 fi
 
 echo "## Summary"

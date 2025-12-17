@@ -17,6 +17,17 @@
 
 namespace disruptor {
 
+// Diagnostic counters used by benchmarks to detect producer backpressure (wrap wait) in SPSC.
+// These are intentionally relaxed atomics; they are not part of the Disruptor API contract.
+inline std::atomic<uint64_t>& sp_wrap_wait_entries() {
+  static std::atomic<uint64_t> v{0};
+  return v;
+}
+inline std::atomic<uint64_t>& sp_wrap_wait_loops() {
+  static std::atomic<uint64_t> v{0};
+  return v;
+}
+
 // Java has padding superclasses; we keep minimal padding hints.
 class SingleProducerSequencer final : public AbstractSequencer {
 public:
@@ -48,10 +59,12 @@ public:
     int64_t cachedGatingSequence = cachedValue_;
 
     if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue) {
+      sp_wrap_wait_entries().fetch_add(1, std::memory_order_relaxed);
       cursor_.setVolatile(nextValue); // StoreLoad fence
 
       int64_t minSequence;
       while (wrapPoint > (minSequence = minimumSequence(nextValue))) {
+        sp_wrap_wait_loops().fetch_add(1, std::memory_order_relaxed);
         // Java: LockSupport.parkNanos(1L)
         std::this_thread::yield();
       }
