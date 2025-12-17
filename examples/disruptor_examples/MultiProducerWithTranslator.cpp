@@ -67,8 +67,7 @@ int main() {
   auto &tf = disruptor::util::DaemonThreadFactory::INSTANCE();
   disruptor::dsl::Disruptor<ObjectBox, disruptor::dsl::ProducerType::MULTI,
                             disruptor::BlockingWaitStrategy>
-      disruptor(ObjectBox::FACTORY, kRingSize, tf,
-                disruptor::BlockingWaitStrategy{});
+      disruptor(ObjectBox::FACTORY, kRingSize, tf);
 
   Consumer c1;
   Consumer c2;

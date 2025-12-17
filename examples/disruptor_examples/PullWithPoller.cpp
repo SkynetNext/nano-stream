@@ -10,8 +10,7 @@
 
 namespace {
 
-template <typename T>
-struct DataEvent {
+template <typename T> struct DataEvent {
   T data{};
 
   static std::shared_ptr<disruptor::EventFactory<DataEvent<T>>> factory() {
@@ -24,22 +23,23 @@ struct DataEvent {
   T copyOfData() { return data; }
 };
 
-template <typename T>
-class OneAtATimeHandler final : public disruptor::EventPoller<DataEvent<T>>::Handler {
+template <typename T, typename PollerT>
+class OneAtATimeHandler final : public PollerT::Handler {
 public:
-  explicit OneAtATimeHandler(T* out) : out_(out) {}
-  bool onEvent(DataEvent<T>& event, int64_t /*sequence*/, bool /*endOfBatch*/) override {
+  explicit OneAtATimeHandler(T *out) : out_(out) {}
+  bool onEvent(DataEvent<T> &event, int64_t /*sequence*/,
+               bool /*endOfBatch*/) override {
     *out_ = event.copyOfData();
     return false; // only one event at a time
   }
+
 private:
-  T* out_;
+  T *out_;
 };
 
-template <typename T>
-static T getNextValue(disruptor::EventPoller<DataEvent<T>>& poller) {
+template <typename T, typename PollerT> static T getNextValue(PollerT &poller) {
   T out{};
-  OneAtATimeHandler<T> h(&out);
+  OneAtATimeHandler<T, PollerT> h(&out);
   poller.poll(h);
   return out;
 }
@@ -47,13 +47,16 @@ static T getNextValue(disruptor::EventPoller<DataEvent<T>>& poller) {
 } // namespace
 
 int main() {
-  auto ringBuffer = disruptor::RingBuffer<DataEvent<void*>>::createMultiProducer(DataEvent<void*>::factory(), 1024);
+  disruptor::BlockingWaitStrategy ws;
+  using Seq =
+      disruptor::MultiProducerSequencer<disruptor::BlockingWaitStrategy>;
+  using RB = disruptor::RingBuffer<DataEvent<void *>, Seq>;
+  auto ringBuffer =
+      RB::createMultiProducer(DataEvent<void *>::factory(), 1024, ws);
   auto poller = ringBuffer->newPoller();
 
-  void* value = getNextValue<void*>(*poller);
+  void *value = getNextValue<void *>(*poller);
   (void)value;
   // Value could be null if no events are available.
   return 0;
 }
-
-

@@ -14,9 +14,11 @@
 
 namespace {
 
-class DynamicHandler final : public disruptor::EventHandler<disruptor_examples::support::StubEvent> {
+class DynamicHandler final
+    : public disruptor::EventHandler<disruptor_examples::support::StubEvent> {
 public:
-  void onEvent(disruptor_examples::support::StubEvent& /*event*/, int64_t /*sequence*/, bool /*endOfBatch*/) override {}
+  void onEvent(disruptor_examples::support::StubEvent & /*event*/,
+               int64_t /*sequence*/, bool /*endOfBatch*/) override {}
 
   void onShutdown() override {
     std::lock_guard<std::mutex> lk(mu_);
@@ -38,11 +40,14 @@ private:
 } // namespace
 
 int main() {
-  auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
+  auto &tf = disruptor::util::DaemonThreadFactory::INSTANCE();
 
   // Build a disruptor and start it.
-  disruptor::dsl::Disruptor<disruptor_examples::support::StubEvent> disruptor(
-      disruptor_examples::support::StubEvent::EVENT_FACTORY, 1024, tf);
+  disruptor::dsl::Disruptor<disruptor_examples::support::StubEvent,
+                            disruptor::dsl::ProducerType::MULTI,
+                            disruptor::BlockingWaitStrategy>
+      disruptor(disruptor_examples::support::StubEvent::EVENT_FACTORY, 1024,
+                tf);
   auto ringBuffer = disruptor.start();
 
   // Construct 2 batch event processors.
@@ -52,7 +57,7 @@ int main() {
   DynamicHandler handler1;
   auto processor1 = builder.build(*ringBuffer, *barrier1, handler1);
 
-  disruptor::Sequence* deps[1] = {&processor1->getSequence()};
+  disruptor::Sequence *deps[1] = {&processor1->getSequence()};
   auto barrier2 = ringBuffer->newBarrier(deps, 1);
   DynamicHandler handler2;
   auto processor2 = builder.build(*ringBuffer, *barrier2, handler2);
@@ -73,10 +78,10 @@ int main() {
   // Clean shutdown.
   processor1->halt();
   handler1.awaitShutdown();
-  if (t1.joinable()) t1.join();
-  if (t2.joinable()) t2.join();
+  if (t1.joinable())
+    t1.join();
+  if (t2.joinable())
+    t2.join();
   disruptor.halt();
   return 0;
 }
-
-

@@ -13,7 +13,7 @@
 
 namespace {
 
-template <typename T, typename RingBufferT> class BatchedPoller {
+template <typename T, typename SequencerT> class BatchedPoller {
 public:
   struct DataEvent {
     T data{};
@@ -29,7 +29,9 @@ public:
     void set(const T &d) { data = d; }
   };
 
-  BatchedPoller(disruptor::RingBuffer<DataEvent> &ringBuffer, int batchSize)
+  using RingBufferT = disruptor::RingBuffer<DataEvent, SequencerT>;
+
+  BatchedPoller(RingBufferT &ringBuffer, int batchSize)
       : poller_(ringBuffer.newPoller()), data_(batchSize) {
     // Java: ringBuffer.addGatingSequences(poller.getSequence());
     ringBuffer.addGatingSequences(poller_->getSequence());
@@ -103,7 +105,6 @@ private:
     poller_->poll(h);
   }
 
-  using SequencerT = typename RingBufferT::SequencerType;
   std::shared_ptr<disruptor::EventPoller<DataEvent, SequencerT>> poller_;
   BatchedData data_;
 };
@@ -113,12 +114,13 @@ private:
 int main() {
   int batchSize = 40;
   using WS = disruptor::BlockingWaitStrategy;
+  WS ws;
   using Seq = disruptor::MultiProducerSequencer<WS>;
-  using RB = disruptor::RingBuffer<BatchedPoller<void *>::DataEvent, Seq>;
-  auto ringBuffer = RB::createMultiProducer(
-      BatchedPoller<void *>::DataEvent::factory(), 1024, WS{});
+  using Ev = typename BatchedPoller<void *, Seq>::DataEvent;
+  using RB = disruptor::RingBuffer<Ev, Seq>;
+  auto ringBuffer = RB::createMultiProducer(Ev::factory(), 1024, ws);
 
-  BatchedPoller<void *, RB> poller(*ringBuffer, batchSize);
+  BatchedPoller<void *, Seq> poller(*ringBuffer, batchSize);
   void *value = poller.poll();
   (void)value;
   return 0;
