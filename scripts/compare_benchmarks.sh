@@ -32,6 +32,22 @@ if command -v jq &> /dev/null; then
   HAVE_JQ=1
 fi
 
+# Extra system info (best-effort). These complement benchmark_cpp.json context which often lacks CPU model / RAM size.
+OS_INFO="$(uname -srm 2>/dev/null || true)"
+KERNEL_INFO="$(uname -r 2>/dev/null || true)"
+CPU_MODEL=""
+MEM_TOTAL=""
+if [ -f /proc/cpuinfo ]; then
+  CPU_MODEL="$(grep -m1 -E 'model name\\s*:' /proc/cpuinfo | sed 's/.*model name\\s*:\\s*//' || true)"
+fi
+if [ -z "$CPU_MODEL" ] && command -v lscpu >/dev/null 2>&1; then
+  CPU_MODEL="$(lscpu 2>/dev/null | grep -m1 -E '^Model name:' | sed 's/^Model name:\\s*//' || true)"
+fi
+if [ -f /proc/meminfo ]; then
+  # MemTotal is in kB
+  MEM_TOTAL="$(awk '/^MemTotal:/ { printf \"%.1f GB\", $2/1024/1024 }' /proc/meminfo 2>/dev/null || true)"
+fi
+
 # Extract hardware information from C++ benchmark JSON.
 if [ -f "$CPP_FILE" ] && [ "$HAVE_JQ" -eq 1 ] && jq -e '.context' "$CPP_FILE" > /dev/null 2>&1; then
   echo "### Hardware Information"
@@ -40,8 +56,12 @@ if [ -f "$CPP_FILE" ] && [ "$HAVE_JQ" -eq 1 ] && jq -e '.context' "$CPP_FILE" > 
     "| Property | Value |
 |----------|-------|
 | Host | \(.host_name // "N/A") |
+| OS | "'"${OS_INFO:-N/A}"'" |
+| Kernel | "'"${KERNEL_INFO:-N/A}"'" |
+| CPU Model | "'"${CPU_MODEL:-N/A}"'" |
 | CPU Cores | \(.num_cpus // "N/A") |
 | CPU Frequency | \(.mhz_per_cpu // "N/A") MHz |
+| Memory | "'"${MEM_TOTAL:-N/A}"'" |
 | CPU Scaling | \(if .cpu_scaling_enabled then "Enabled" else "Disabled" end) |
 | ASLR | \(if .aslr_enabled then "Enabled" else "Disabled" end) |"' "$CPP_FILE" 2>/dev/null || true
 
@@ -54,18 +74,42 @@ if [ -f "$CPP_FILE" ] && [ "$HAVE_JQ" -eq 1 ] && jq -e '.context' "$CPP_FILE" > 
 elif [ -f "$CPP_FILE" ]; then
   # Fallback without jq (Windows/Git Bash friendly): use python to print the same tables.
   python - "$CPP_FILE" <<'PY' || true
-import json, sys
+import json, sys, os, platform, re
 path = sys.argv[1]
 with open(path, "r", encoding="utf-8") as f:
     d = json.load(f)
 ctx = d.get("context", {}) or {}
+os_info = platform.platform()
+kernel = platform.release()
+cpu_model = None
+mem_total = None
+try:
+    if os.path.exists("/proc/cpuinfo"):
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as cf:
+            for line in cf:
+                if line.lower().startswith("model name"):
+                    cpu_model = line.split(":", 1)[1].strip()
+                    break
+    if os.path.exists("/proc/meminfo"):
+        with open("/proc/meminfo", "r", encoding="utf-8", errors="ignore") as mf:
+            for line in mf:
+                if line.startswith("MemTotal:"):
+                    kb = int(re.findall(r"\d+", line)[0])
+                    mem_total = f"{kb/1024/1024:.1f} GB"
+                    break
+except Exception:
+    pass
 print("### Hardware Information\n")
 print("| Property | Value |")
 print("|----------|-------|")
 print(f"| Host | {ctx.get('host_name','N/A')} |")
+print(f"| OS | {os_info or 'N/A'} |")
+print(f"| Kernel | {kernel or 'N/A'} |")
+print(f"| CPU Model | {cpu_model or 'N/A'} |")
 print(f"| CPU Cores | {ctx.get('num_cpus','N/A')} |")
 mhz = ctx.get("mhz_per_cpu","N/A")
 print(f"| CPU Frequency | {mhz} MHz |")
+print(f"| Memory | {mem_total or 'N/A'} |")
 cpu_scaling = ctx.get("cpu_scaling_enabled", None)
 aslr = ctx.get("aslr_enabled", None)
 if cpu_scaling is None: cpu_scaling = ctx.get("cpu_scaling", None)

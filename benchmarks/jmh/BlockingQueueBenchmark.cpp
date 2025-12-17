@@ -29,10 +29,15 @@ public:
 
   bool offer(nano_stream::bench::jmh::SimpleEvent* e, std::chrono::nanoseconds timeout) {
     std::unique_lock<std::mutex> lk(mu_);
-    if (!cv_not_full_.wait_for(lk, timeout, [&] { return count_ < capacity_ || !running_; })) {
-      return false;
+
+    // Fast path: do not call into condition_variable if we are not full.
+    // Java's ArrayBlockingQueue.offer(timeout) only waits when full.
+    if (count_ >= capacity_) {
+      if (!cv_not_full_.wait_for(lk, timeout, [&] { return count_ < capacity_ || !running_; })) {
+        return false;
+      }
+      if (!running_) return false;
     }
-    if (!running_) return false;
     buf_[tail_] = e;
     tail_ = (tail_ + 1) % capacity_;
     ++count_;
