@@ -125,9 +125,9 @@ jobs:
           ./benchmarks/nano_stream_benchmarks \
             --benchmark_format=json \
             --benchmark_out=../benchmark_cpp.json \
-            --benchmark_min_warmup_time=30 \
-            --benchmark_min_time=10s \
-            --benchmark_repetitions=5 \
+            --benchmark_min_warmup_time=10 \
+            --benchmark_min_time=5s \
+            --benchmark_repetitions=3 \
             --benchmark_report_aggregates_only=true \
             --benchmark_filter=JMH_.*
           cd ..
@@ -174,7 +174,7 @@ jobs:
           # NOTE: We do NOT force -bm or -t here; respect each benchmark's own annotations.
           java -jar build/libs/*-jmh.jar \
             -rf json -rff ../../benchmark_java.json -foe true -v NORMAL \
-            -f 1 -wi 3 -i 5 \
+            -f 1 -wi 2 -w 5s -i 3 -r 5s \
             ".*(SingleProducerSingleConsumer|MultiProducerSingleConsumer|BlockingQueueBenchmark).*"
 
           echo "Java benchmark file location: $(cd ../.. && pwd)/benchmark_java.json"
