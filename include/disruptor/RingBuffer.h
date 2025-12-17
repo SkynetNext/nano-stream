@@ -241,15 +241,18 @@ public:
   // Java exposes a public constructor RingBuffer(EventFactory, Sequencer). This
   // is required by some tests (e.g. RingBufferWithAssertingStubTest) that
   // inject custom Sequencer implementations.
-  // Constructor accepting SequencerT by value (for non-movable sequencers).
-  RingBuffer(std::shared_ptr<EventFactory<E>> eventFactory,
-             SequencerT sequencer)
-      : indexMask_(sequencer.getBufferSize() - 1),
-        entries_(
-            static_cast<size_t>(sequencer.getBufferSize() + 2 * BUFFER_PAD)),
-        bufferSize_(sequencer.getBufferSize()),
-        sequencerValue_(std::move(sequencer)), sequencerOwner_(nullptr),
-        usingValue_(true) {
+  // Constructor accepting SequencerT construction arguments (for non-movable
+  // sequencers). We construct SequencerT in-place in the optional to avoid
+  // move/copy.
+  template <typename... SequencerArgs>
+  RingBuffer(std::shared_ptr<EventFactory<E>> eventFactory, std::in_place_t,
+             SequencerArgs &&...sequencerArgs)
+      : sequencerValue_(std::in_place,
+                        std::forward<SequencerArgs>(sequencerArgs)...),
+        sequencerOwner_(nullptr), usingValue_(true) {
+    bufferSize_ = sequencerValue_->getBufferSize();
+    indexMask_ = bufferSize_ - 1;
+    entries_.resize(static_cast<size_t>(bufferSize_ + 2 * BUFFER_PAD));
     if (!eventFactory) {
       throw std::invalid_argument("eventFactory must not be null");
     }

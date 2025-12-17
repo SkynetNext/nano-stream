@@ -88,9 +88,9 @@ private:
   static std::shared_ptr<RingBufferT>
   makeRingBuffer_(std::shared_ptr<EventFactory<T>> factory, int ringBufferSize,
                   WaitStrategyT &waitStrategy) {
-    using Seq = SequencerT;
-    return std::shared_ptr<RingBufferT>(
-        new RingBufferT(std::move(factory), Seq(ringBufferSize, waitStrategy)));
+    // Construct SequencerT in-place in RingBuffer to avoid move/copy
+    return std::shared_ptr<RingBufferT>(new RingBufferT(
+        std::move(factory), std::in_place, ringBufferSize, waitStrategy));
   }
 
 public:
