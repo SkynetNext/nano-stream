@@ -3,7 +3,6 @@
 // Source: reference/disruptor/src/main/java/com/lmax/disruptor/LiteBlockingWaitStrategy.java
 
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "WaitStrategy.h"
 #include "util/ThreadHints.h"
 
@@ -14,12 +13,15 @@
 
 namespace disruptor {
 
-class LiteBlockingWaitStrategy final : public WaitStrategy {
+class LiteBlockingWaitStrategy final {
 public:
+  static constexpr bool kIsBlockingStrategy = true;
+
+  template <typename Barrier>
   int64_t waitFor(int64_t sequence,
                   const Sequence& cursorSequence,
                   const Sequence& dependentSequence,
-                  SequenceBarrier& barrier) override {
+                  Barrier& barrier) {
     int64_t availableSequence;
     if (cursorSequence.get() < sequence) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -43,14 +45,12 @@ public:
     return availableSequence;
   }
 
-  void signalAllWhenBlocking() override {
+  void signalAllWhenBlocking() {
     if (signalNeeded_.exchange(false, std::memory_order_acq_rel)) {
       std::lock_guard<std::mutex> lock(mutex_);
       cv_.notify_all();
     }
   }
-
-  bool isBlockingStrategy() const noexcept override { return true; }
 
 private:
   std::mutex mutex_;

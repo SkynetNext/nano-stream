@@ -1,52 +1,54 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.PhasedBackoffWaitStrategy
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/PhasedBackoffWaitStrategy.java
+// Source:
+// reference/disruptor/src/main/java/com/lmax/disruptor/PhasedBackoffWaitStrategy.java
 
 #include "BlockingWaitStrategy.h"
 #include "LiteBlockingWaitStrategy.h"
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "SleepingWaitStrategy.h"
 #include "WaitStrategy.h"
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <thread>
-#include <chrono>
+
 
 namespace disruptor {
 
-class PhasedBackoffWaitStrategy final : public WaitStrategy {
+template <typename FallbackStrategy> class PhasedBackoffWaitStrategy final {
 public:
-  PhasedBackoffWaitStrategy(int64_t spinTimeoutNanos,
-                            int64_t yieldTimeoutNanos,
-                            std::unique_ptr<WaitStrategy> fallbackStrategy)
+  static constexpr bool kIsBlockingStrategy =
+      FallbackStrategy::kIsBlockingStrategy;
+
+  PhasedBackoffWaitStrategy(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos,
+                            FallbackStrategy fallbackStrategy)
       : spinTimeoutNanos_(spinTimeoutNanos),
         yieldTimeoutNanos_(spinTimeoutNanos + yieldTimeoutNanos),
         fallbackStrategy_(std::move(fallbackStrategy)) {}
 
-  static std::unique_ptr<PhasedBackoffWaitStrategy> withLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
-    return std::make_unique<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
-                                                       yieldTimeoutNanos,
-                                                       std::make_unique<BlockingWaitStrategy>());
+  static PhasedBackoffWaitStrategy<BlockingWaitStrategy>
+  withLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
+    return PhasedBackoffWaitStrategy<BlockingWaitStrategy>(
+        spinTimeoutNanos, yieldTimeoutNanos, BlockingWaitStrategy());
   }
 
-  static std::unique_ptr<PhasedBackoffWaitStrategy> withLiteLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
-    return std::make_unique<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
-                                                       yieldTimeoutNanos,
-                                                       std::make_unique<LiteBlockingWaitStrategy>());
+  static PhasedBackoffWaitStrategy<LiteBlockingWaitStrategy>
+  withLiteLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
+    return PhasedBackoffWaitStrategy<LiteBlockingWaitStrategy>(
+        spinTimeoutNanos, yieldTimeoutNanos, LiteBlockingWaitStrategy());
   }
 
-  static std::unique_ptr<PhasedBackoffWaitStrategy> withSleep(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
-    return std::make_unique<PhasedBackoffWaitStrategy>(spinTimeoutNanos,
-                                                       yieldTimeoutNanos,
-                                                       std::make_unique<SleepingWaitStrategy>(0));
+  static PhasedBackoffWaitStrategy<SleepingWaitStrategy>
+  withSleep(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
+    return PhasedBackoffWaitStrategy<SleepingWaitStrategy>(
+        spinTimeoutNanos, yieldTimeoutNanos, SleepingWaitStrategy(0));
   }
 
-  int64_t waitFor(int64_t sequence,
-                  const Sequence& cursor,
-                  const Sequence& dependentSequence,
-                  SequenceBarrier& barrier) override {
+  template <typename Barrier>
+  int64_t waitFor(int64_t sequence, const Sequence &cursor,
+                  const Sequence &dependentSequence, Barrier &barrier) {
     int64_t availableSequence;
     int64_t startTimeNs = 0;
     int counter = SPIN_TRIES;
@@ -62,7 +64,8 @@ public:
         } else {
           const int64_t timeDelta = nowNanos() - startTimeNs;
           if (timeDelta > yieldTimeoutNanos_) {
-            return fallbackStrategy_->waitFor(sequence, cursor, dependentSequence, barrier);
+            return fallbackStrategy_.waitFor(sequence, cursor,
+                                             dependentSequence, barrier);
           } else if (timeDelta > spinTimeoutNanos_) {
             std::this_thread::yield();
           }
@@ -72,14 +75,13 @@ public:
     }
   }
 
-  void signalAllWhenBlocking() override { fallbackStrategy_->signalAllWhenBlocking(); }
-  bool isBlockingStrategy() const noexcept override { return fallbackStrategy_->isBlockingStrategy(); }
+  void signalAllWhenBlocking() { fallbackStrategy_.signalAllWhenBlocking(); }
 
 private:
   static constexpr int SPIN_TRIES = 10000;
   int64_t spinTimeoutNanos_;
   int64_t yieldTimeoutNanos_;
-  std::unique_ptr<WaitStrategy> fallbackStrategy_;
+  FallbackStrategy fallbackStrategy_;
 
   static int64_t nowNanos() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(

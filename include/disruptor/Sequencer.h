@@ -1,42 +1,39 @@
 #pragma once
-// 1:1 port of com.lmax.disruptor.Sequencer
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/Sequencer.java
-
-#include "Cursored.h"
-#include "Sequenced.h"
+// Template-friendly Sequencer (no virtual dispatch).
+//
+// This file no longer defines a base class. In the template implementation,
+// a "Sequencer" is any type that provides the methods used by RingBuffer and
+// ProcessingSequenceBarrier:
+//
+// Required API (subset, depends on producer type):
+//   int64_t getCursor() const;
+//   int getBufferSize() const;
+//   bool hasAvailableCapacity(int requiredCapacity);
+//   int64_t remainingCapacity();
+//   int64_t next();
+//   int64_t next(int n);
+//   int64_t tryNext();
+//   int64_t tryNext(int n);
+//   void publish(int64_t sequence);
+//   void publish(int64_t lo, int64_t hi);
+//   void addGatingSequences(Sequence* const* gatingSequences, int count);
+//   bool removeGatingSequence(Sequence& sequence);
+//   std::shared_ptr<ProcessingSequenceBarrier<SequencerT, WaitStrategyT>>
+//   newBarrier(...); (via concrete type) int64_t getMinimumSequence(); int64_t
+//   getHighestPublishedSequence(int64_t nextSequence, int64_t
+//   availableSequence);
 
 #include <cstdint>
 
 namespace disruptor {
 
-class Sequence;
-class SequenceBarrier;
-
-template <typename T> class DataProvider;
-template <typename T> class EventPoller;
-
-class Sequencer : public Cursored, public Sequenced {
-public:
+// Keep a tiny Sequencer type for constant compatibility during migration.
+// This is NOT a polymorphic base class anymore.
+struct Sequencer {
   static constexpr int64_t INITIAL_CURSOR_VALUE = -1;
-
-  ~Sequencer() override = default;
-
-  virtual void claim(int64_t sequence) = 0;
-  virtual bool isAvailable(int64_t sequence) = 0;
-
-  virtual void addGatingSequences(Sequence* const* gatingSequences, int count) = 0;
-  virtual bool removeGatingSequence(Sequence& sequence) = 0;
-
-  virtual std::shared_ptr<SequenceBarrier> newBarrier(Sequence* const* sequencesToTrack, int count) = 0;
-
-  virtual int64_t getMinimumSequence() = 0;
-  virtual int64_t getHighestPublishedSequence(int64_t nextSequence, int64_t availableSequence) = 0;
-
-  template <typename T>
-  std::shared_ptr<EventPoller<T>> newPoller(DataProvider<T>& /*provider*/, Sequence* const* /*gatingSequences*/, int /*count*/) {
-    // Implemented in AbstractSequencer in Java; C++ port follows by providing a concrete override there.
-    return nullptr;
-  }
 };
+
+inline constexpr int64_t SEQUENCER_INITIAL_CURSOR_VALUE =
+    Sequencer::INITIAL_CURSOR_VALUE;
 
 } // namespace disruptor

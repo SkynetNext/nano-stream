@@ -17,12 +17,13 @@
 
 namespace disruptor {
 
-class MultiProducerSequencer final : public AbstractSequencer {
+template <typename WaitStrategyT>
+class MultiProducerSequencer final : public AbstractSequencer<WaitStrategyT> {
 public:
   MultiProducerSequencer(int bufferSize,
-                         std::unique_ptr<WaitStrategy> waitStrategy)
-      : AbstractSequencer(bufferSize, std::move(waitStrategy)),
-        gatingSequenceCache_(Sequencer::INITIAL_CURSOR_VALUE),
+                         WaitStrategyT waitStrategy)
+      : AbstractSequencer<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
+        gatingSequenceCache_(SEQUENCER_INITIAL_CURSOR_VALUE),
         availableBuffer_(static_cast<size_t>(bufferSize)),
         indexMask_(bufferSize - 1),
         indexShift_(disruptor::util::Util::log2(bufferSize)),
@@ -32,24 +33,24 @@ public:
     }
   }
 
-  bool hasAvailableCapacity(int requiredCapacity) override {
-    auto snap = gatingSequences_.load(std::memory_order_acquire);
+  bool hasAvailableCapacity(int requiredCapacity) {
+    auto snap = this->gatingSequences_.load(std::memory_order_acquire);
     // Java passes gatingSequences array + cursor.get()
-    return hasAvailableCapacity(snap.get(), requiredCapacity, cursor_.get());
+    return hasAvailableCapacity(snap.get(), requiredCapacity, this->cursor_.get());
   }
 
-  void claim(int64_t sequence) override { cursor_.set(sequence); }
+  void claim(int64_t sequence) { this->cursor_.set(sequence); }
 
-  int64_t next() override { return next(1); }
+  int64_t next() { return next(1); }
 
-  int64_t next(int n) override {
-    if (n < 1 || n > bufferSize_) {
+  int64_t next(int n) {
+    if (n < 1 || n > this->bufferSize_) {
       throw std::invalid_argument("n must be > 0 and < bufferSize");
     }
 
-    int64_t current = cursor_.getAndAdd(n);
+    int64_t current = this->cursor_.getAndAdd(n);
     int64_t nextSequence = current + n;
-    int64_t wrapPoint = nextSequence - bufferSize_;
+    int64_t wrapPoint = nextSequence - this->bufferSize_;
     int64_t cachedGatingSequence = gatingSequenceCache_.get();
 
     if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current) {
@@ -63,9 +64,9 @@ public:
     return nextSequence;
   }
 
-  int64_t tryNext() override { return tryNext(1); }
+  int64_t tryNext() { return tryNext(1); }
 
-  int64_t tryNext(int n) override {
+  int64_t tryNext(int n) {
     if (n < 1) {
       throw std::invalid_argument("n must be > 0");
     }
@@ -73,45 +74,41 @@ public:
     int64_t current;
     int64_t next;
     do {
-      current = cursor_.get();
+      current = this->cursor_.get();
       next = current + n;
 
-      auto snap = gatingSequences_.load(std::memory_order_acquire);
+      auto snap = this->gatingSequences_.load(std::memory_order_acquire);
       if (!hasAvailableCapacity(snap.get(), n, current)) {
         throw InsufficientCapacityException::INSTANCE();
       }
-    } while (!cursor_.compareAndSet(current, next));
+    } while (!this->cursor_.compareAndSet(current, next));
 
     return next;
   }
 
-  int64_t remainingCapacity() override {
-    int64_t consumed = minimumSequence(cursor_.get());
-    int64_t produced = cursor_.get();
+  int64_t remainingCapacity() {
+    int64_t consumed = minimumSequence(this->cursor_.get());
+    int64_t produced = this->cursor_.get();
     return getBufferSize() - (produced - consumed);
   }
 
-  void publish(int64_t sequence) override {
+  void publish(int64_t sequence) {
     setAvailable(sequence);
-    // Optimization: For non-blocking strategies (e.g. BusySpinWaitStrategy),
-    // signalOnPublish_ is false.
-    if (signalOnPublish_) [[unlikely]] {
-      waitStrategy_->signalAllWhenBlocking();
+    if constexpr (WaitStrategyT::kIsBlockingStrategy) {
+      this->waitStrategy_.signalAllWhenBlocking();
     }
   }
 
-  void publish(int64_t lo, int64_t hi) override {
+  void publish(int64_t lo, int64_t hi) {
     for (int64_t l = lo; l <= hi; ++l) {
       setAvailable(l);
     }
-    // Optimization: For non-blocking strategies (e.g. BusySpinWaitStrategy),
-    // signalOnPublish_ is false.
-    if (signalOnPublish_) [[unlikely]] {
-      waitStrategy_->signalAllWhenBlocking();
+    if constexpr (WaitStrategyT::kIsBlockingStrategy) {
+      this->waitStrategy_.signalAllWhenBlocking();
     }
   }
 
-  bool isAvailable(int64_t sequence) override {
+  bool isAvailable(int64_t sequence) {
     int index = calculateIndex(sequence);
     int flag = calculateAvailabilityFlag(sequence);
     return availableBuffer_[static_cast<size_t>(index)].load(
@@ -119,7 +116,7 @@ public:
   }
 
   int64_t getHighestPublishedSequence(int64_t lowerBound,
-                                      int64_t availableSequence) override {
+                                      int64_t availableSequence) {
     for (int64_t sequence = lowerBound; sequence <= availableSequence;
          ++sequence) {
       if (!isAvailable(sequence)) {
@@ -131,13 +128,13 @@ public:
 
   // Override to invalidate cache when gating sequences change
   void addGatingSequences(Sequence *const *gatingSequences,
-                          int count) override {
-    AbstractSequencer::addGatingSequences(gatingSequences, count);
+                          int count) {
+    AbstractSequencer<WaitStrategyT>::addGatingSequences(gatingSequences, count);
     gatingSequencesCache_ = nullptr; // Invalidate cache
   }
 
-  bool removeGatingSequence(Sequence &sequence) override {
-    bool result = AbstractSequencer::removeGatingSequence(sequence);
+  bool removeGatingSequence(Sequence &sequence) {
+    bool result = AbstractSequencer<WaitStrategyT>::removeGatingSequence(sequence);
     gatingSequencesCache_ = nullptr; // Invalidate cache
     return result;
   }
@@ -155,7 +152,7 @@ private:
 
   bool hasAvailableCapacity(const std::vector<Sequence *> *gatingSequences,
                             int requiredCapacity, int64_t cursorValue) {
-    int64_t wrapPoint = (cursorValue + requiredCapacity) - bufferSize_;
+    int64_t wrapPoint = (cursorValue + requiredCapacity) - this->bufferSize_;
     int64_t cachedGatingSequence = gatingSequenceCache_.get();
 
     if (wrapPoint > cachedGatingSequence ||
@@ -200,7 +197,7 @@ private:
     if (!cached) {
       // Fallback: reload if cache is null (initialization or after
       // modifications)
-      auto snap = gatingSequences_.load(std::memory_order_acquire);
+      auto snap = this->gatingSequences_.load(std::memory_order_acquire);
       if (!snap) {
         return defaultMin;
       }

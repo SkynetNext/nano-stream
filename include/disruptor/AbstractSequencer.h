@@ -2,8 +2,8 @@
 // 1:1 port of com.lmax.disruptor.AbstractSequencer
 // Source: reference/disruptor/src/main/java/com/lmax/disruptor/AbstractSequencer.java
 
-#include "Sequencer.h"
 #include "Sequence.h"
+#include "Sequencer.h"
 #include "WaitStrategy.h"
 
 #include "SequenceGroups.h"
@@ -18,21 +18,21 @@
 
 namespace disruptor {
 
-class ProcessingSequenceBarrier;
-class SequenceBarrier;
+template <typename SequencerT, typename WaitStrategyT> class ProcessingSequenceBarrier;
 
 template <typename T> class DataProvider;
 template <typename T> class EventPoller;
 
 // Java uses AtomicReferenceFieldUpdater over a volatile Sequence[] for gatingSequences.
 // C++ port uses an atomic shared_ptr snapshot updated via CAS (see SequenceGroups).
-class AbstractSequencer : public Sequencer {
+//
+// Template version: WaitStrategy is stored by value and statically dispatched.
+template <typename WaitStrategyT>
+class AbstractSequencer {
 public:
-  AbstractSequencer(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
+  AbstractSequencer(int bufferSize, WaitStrategyT waitStrategy)
       : bufferSize_(bufferSize),
-        waitStrategyOwner_(std::move(waitStrategy)),
-        waitStrategy_(waitStrategyOwner_.get()),
-        signalOnPublish_(waitStrategy_ ? waitStrategy_->isBlockingStrategy() : true),
+        waitStrategy_(std::move(waitStrategy)),
         cursor_(Sequencer::INITIAL_CURSOR_VALUE),
         gatingSequences_(std::make_shared<std::vector<Sequence*>>()) {
     if (bufferSize < 1) {
@@ -43,18 +43,18 @@ public:
     }
   }
 
-  int64_t getCursor() const override { return cursor_.get(); }
-  int getBufferSize() const override { return bufferSize_; }
+  int64_t getCursor() const { return cursor_.get(); }
+  int getBufferSize() const { return bufferSize_; }
 
-  void addGatingSequences(Sequence* const* gatingSequences, int count) override {
+  void addGatingSequences(Sequence* const* gatingSequences, int count) {
     SequenceGroups::addSequences(*this, gatingSequences_, *this, gatingSequences, count);
   }
 
-  bool removeGatingSequence(Sequence& sequence) override {
+  bool removeGatingSequence(Sequence& sequence) {
     return SequenceGroups::removeSequence(*this, gatingSequences_, sequence);
   }
 
-  int64_t getMinimumSequence() override {
+  int64_t getMinimumSequence() {
     auto snap = gatingSequences_.load(std::memory_order_acquire);
     if (!snap) {
       return cursor_.get();
@@ -62,7 +62,8 @@ public:
     return disruptor::util::Util::getMinimumSequence(*snap, cursor_.get());
   }
 
-  std::shared_ptr<SequenceBarrier> newBarrier(Sequence* const* sequencesToTrack, int count) override;
+  std::shared_ptr<ProcessingSequenceBarrier<AbstractSequencer<WaitStrategyT>, WaitStrategyT>>
+  newBarrier(Sequence* const* sequencesToTrack, int count);
 
   template <typename T>
   std::shared_ptr<EventPoller<T>> newPoller(DataProvider<T>& dataProvider, Sequence* const* gatingSequences, int count) {
@@ -77,9 +78,7 @@ public:
 
 protected:
   int bufferSize_;
-  std::unique_ptr<WaitStrategy> waitStrategyOwner_;
-  WaitStrategy* waitStrategy_;
-  bool signalOnPublish_;
+  WaitStrategyT waitStrategy_;
   Sequence cursor_;
   std::atomic<std::shared_ptr<std::vector<Sequence*>>> gatingSequences_;
 };
@@ -91,8 +90,11 @@ protected:
 
 namespace disruptor {
 
-inline std::shared_ptr<SequenceBarrier> AbstractSequencer::newBarrier(Sequence* const* sequencesToTrack, int count) {
-  return std::make_shared<ProcessingSequenceBarrier>(*this, *waitStrategy_, cursor_, sequencesToTrack, count);
+template <typename WaitStrategyT>
+inline std::shared_ptr<ProcessingSequenceBarrier<AbstractSequencer<WaitStrategyT>, WaitStrategyT>>
+AbstractSequencer<WaitStrategyT>::newBarrier(Sequence* const* sequencesToTrack, int count) {
+  return std::make_shared<ProcessingSequenceBarrier<AbstractSequencer<WaitStrategyT>, WaitStrategyT>>(
+      *this, waitStrategy_, cursor_, sequencesToTrack, count);
 }
 
 } // namespace disruptor

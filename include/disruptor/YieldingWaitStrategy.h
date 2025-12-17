@@ -1,9 +1,9 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.YieldingWaitStrategy
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/YieldingWaitStrategy.java
+// Source:
+// reference/disruptor/src/main/java/com/lmax/disruptor/YieldingWaitStrategy.java
 
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "WaitStrategy.h"
 
 #include <cstdint>
@@ -11,12 +11,13 @@
 
 namespace disruptor {
 
-class YieldingWaitStrategy final : public WaitStrategy {
+class YieldingWaitStrategy final {
 public:
-  int64_t waitFor(int64_t sequence,
-                  const Sequence& /*cursor*/,
-                  const Sequence& dependentSequence,
-                  SequenceBarrier& barrier) override {
+  static constexpr bool kIsBlockingStrategy = false;
+
+  template <typename Barrier>
+  int64_t waitFor(int64_t sequence, const Sequence & /*cursor*/,
+                  const Sequence &dependentSequence, Barrier &barrier) {
     int64_t availableSequence;
     int counter = SPIN_TRIES;
 
@@ -26,13 +27,13 @@ public:
     return availableSequence;
   }
 
-  void signalAllWhenBlocking() override {}
-  bool isBlockingStrategy() const noexcept override { return false; }
+  void signalAllWhenBlocking() {}
 
 private:
   static constexpr int SPIN_TRIES = 100;
 
-  static int applyWaitMethod(SequenceBarrier& barrier, int counter) {
+  template <typename Barrier>
+  static int applyWaitMethod(Barrier &barrier, int counter) {
     barrier.checkAlert();
     if (counter == 0) {
       std::this_thread::yield();

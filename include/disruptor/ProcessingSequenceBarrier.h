@@ -6,7 +6,6 @@
 #include "FixedSequenceGroup.h"
 #include "Sequence.h"
 #include "SequenceBarrier.h"
-#include "Sequencer.h"
 #include "TimeoutException.h"
 #include "WaitStrategy.h"
 
@@ -18,10 +17,12 @@
 namespace disruptor {
 
 // Java: final class ProcessingSequenceBarrier implements SequenceBarrier
-class ProcessingSequenceBarrier final : public SequenceBarrier {
+// C++ (template): eliminate virtual dispatch by templating on Sequencer + WaitStrategy.
+template <typename SequencerT, typename WaitStrategyT>
+class ProcessingSequenceBarrier final {
 public:
-  ProcessingSequenceBarrier(Sequencer& sequencer,
-                            WaitStrategy& waitStrategy,
+  ProcessingSequenceBarrier(SequencerT& sequencer,
+                            WaitStrategyT& waitStrategy,
                             Sequence& cursorSequence,
                             Sequence* const* dependentSequences,
                             int dependentCount)
@@ -39,7 +40,7 @@ public:
     }
   }
 
-  int64_t waitFor(int64_t sequence) override {
+  int64_t waitFor(int64_t sequence) {
     checkAlert();
 
     int64_t availableSequence =
@@ -52,29 +53,29 @@ public:
     return sequencer_->getHighestPublishedSequence(sequence, availableSequence);
   }
 
-  int64_t getCursor() const override { return dependentSequence_->get(); }
+  int64_t getCursor() const { return dependentSequence_->get(); }
 
-  bool isAlerted() const override { return alerted_.load(std::memory_order_acquire); }
+  bool isAlerted() const { return alerted_.load(std::memory_order_acquire); }
 
-  void alert() override {
+  void alert() {
     alerted_.store(true, std::memory_order_release);
     waitStrategy_->signalAllWhenBlocking();
   }
 
-  void clearAlert() override { alerted_.store(false, std::memory_order_release); }
+  void clearAlert() { alerted_.store(false, std::memory_order_release); }
 
-  void checkAlert() override {
+  void checkAlert() {
     if (isAlerted()) {
       throw AlertException::INSTANCE();
     }
   }
 
 private:
-  WaitStrategy* waitStrategy_;
+  WaitStrategyT* waitStrategy_;
   Sequence* dependentSequence_;
   std::atomic<bool> alerted_;
   Sequence* cursorSequence_;
-  Sequencer* sequencer_;
+  SequencerT* sequencer_;
 
   // Holds FixedSequenceGroup storage when needed.
   std::unique_ptr<FixedSequenceGroup> fixedGroup_;

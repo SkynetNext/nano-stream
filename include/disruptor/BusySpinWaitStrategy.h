@@ -3,7 +3,6 @@
 
 #include "AlertException.h"
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "WaitStrategy.h"
 
 #if defined(_MSC_VER)
@@ -12,11 +11,13 @@
 
 namespace disruptor {
 
-class BusySpinWaitStrategy final : public WaitStrategy {
+class BusySpinWaitStrategy final {
 public:
+  static constexpr bool kIsBlockingStrategy = false;
+
+  template <typename Barrier>
   int64_t waitFor(int64_t sequence, const Sequence & /*cursor*/,
-                  const Sequence &dependentSequence,
-                  SequenceBarrier &barrier) override {
+                  const Sequence &dependentSequence, Barrier &barrier) {
     int64_t available;
     while ((available = dependentSequence.get()) < sequence) {
       barrier.checkAlert();
@@ -29,8 +30,7 @@ public:
     return available;
   }
 
-  void signalAllWhenBlocking() override {}
-  bool isBlockingStrategy() const noexcept override { return false; }
+  void signalAllWhenBlocking() {}
 };
 
 } // namespace disruptor

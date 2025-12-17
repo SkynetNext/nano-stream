@@ -40,7 +40,7 @@ public:
         sequenceBarrier_(&sequenceBarrier),
         eventHandler_(&eventHandler),
         batchLimitOffset_(maxBatchSize - 1),
-        sequence_(Sequencer::INITIAL_CURSOR_VALUE),
+        sequence_(SEQUENCER_INITIAL_CURSOR_VALUE),
         retriesAttempted_(0) {
     if (maxBatchSize < 1) {
       throw std::invalid_argument("maxBatchSize must be greater than 0");

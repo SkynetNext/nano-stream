@@ -37,7 +37,7 @@ private:
   class SequencerFollowingSequence final : public Sequence {
   public:
     explicit SequencerFollowingSequence(RingBuffer<T>& sequencer)
-        : Sequence(Sequencer::INITIAL_CURSOR_VALUE), sequencer_(&sequencer) {}
+        : Sequence(SEQUENCER_INITIAL_CURSOR_VALUE), sequencer_(&sequencer) {}
 
     int64_t get() const noexcept override { return sequencer_->getCursor(); }
 

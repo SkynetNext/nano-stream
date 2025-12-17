@@ -1,27 +1,31 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.SleepingWaitStrategy
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/SleepingWaitStrategy.java
+// Source:
+// reference/disruptor/src/main/java/com/lmax/disruptor/SleepingWaitStrategy.java
 
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "WaitStrategy.h"
 
+#include <chrono>
 #include <cstdint>
 #include <thread>
-#include <chrono>
 
 namespace disruptor {
 
-class SleepingWaitStrategy final : public WaitStrategy {
+class SleepingWaitStrategy final {
 public:
-  SleepingWaitStrategy() : SleepingWaitStrategy(DEFAULT_RETRIES, DEFAULT_SLEEP) {}
-  explicit SleepingWaitStrategy(int retries) : SleepingWaitStrategy(retries, DEFAULT_SLEEP) {}
-  SleepingWaitStrategy(int retries, int64_t sleepTimeNs) : retries_(retries), sleepTimeNs_(sleepTimeNs) {}
+  static constexpr bool kIsBlockingStrategy = false;
 
-  int64_t waitFor(int64_t sequence,
-                  const Sequence& /*cursor*/,
-                  const Sequence& dependentSequence,
-                  SequenceBarrier& barrier) override {
+  SleepingWaitStrategy()
+      : SleepingWaitStrategy(DEFAULT_RETRIES, DEFAULT_SLEEP) {}
+  explicit SleepingWaitStrategy(int retries)
+      : SleepingWaitStrategy(retries, DEFAULT_SLEEP) {}
+  SleepingWaitStrategy(int retries, int64_t sleepTimeNs)
+      : retries_(retries), sleepTimeNs_(sleepTimeNs) {}
+
+  template <typename Barrier>
+  int64_t waitFor(int64_t sequence, const Sequence & /*cursor*/,
+                  const Sequence &dependentSequence, Barrier &barrier) {
     int64_t availableSequence;
     int counter = retries_;
 
@@ -31,8 +35,7 @@ public:
     return availableSequence;
   }
 
-  void signalAllWhenBlocking() override {}
-  bool isBlockingStrategy() const noexcept override { return false; }
+  void signalAllWhenBlocking() {}
 
 private:
   static constexpr int SPIN_THRESHOLD = 100;
@@ -42,7 +45,8 @@ private:
   int retries_;
   int64_t sleepTimeNs_;
 
-  int applyWaitMethod(SequenceBarrier& barrier, int counter) {
+  template <typename Barrier>
+  int applyWaitMethod(Barrier &barrier, int counter) {
     barrier.checkAlert();
 
     if (counter > SPIN_THRESHOLD) {

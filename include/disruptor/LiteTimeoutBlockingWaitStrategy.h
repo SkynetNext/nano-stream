@@ -1,29 +1,31 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.LiteTimeoutBlockingWaitStrategy
-// Source: reference/disruptor/src/main/java/com/lmax/disruptor/LiteTimeoutBlockingWaitStrategy.java
+// Source:
+// reference/disruptor/src/main/java/com/lmax/disruptor/LiteTimeoutBlockingWaitStrategy.java
 
 #include "Sequence.h"
-#include "SequenceBarrier.h"
 #include "TimeoutException.h"
 #include "WaitStrategy.h"
 #include "util/Util.h"
 
 #include <atomic>
-#include <cstdint>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
+
 
 namespace disruptor {
 
-class LiteTimeoutBlockingWaitStrategy final : public WaitStrategy {
+class LiteTimeoutBlockingWaitStrategy final {
 public:
+  static constexpr bool kIsBlockingStrategy = true;
+
   explicit LiteTimeoutBlockingWaitStrategy(int64_t timeoutInNanos)
       : timeoutInNanos_(timeoutInNanos) {}
 
-  int64_t waitFor(int64_t sequence,
-                  const Sequence& cursorSequence,
-                  const Sequence& dependentSequence,
-                  SequenceBarrier& barrier) override {
+  template <typename Barrier>
+  int64_t waitFor(int64_t sequence, const Sequence &cursorSequence,
+                  const Sequence &dependentSequence, Barrier &barrier) {
     int64_t nanos = timeoutInNanos_;
 
     int64_t availableSequence;
@@ -45,14 +47,12 @@ public:
     return availableSequence;
   }
 
-  void signalAllWhenBlocking() override {
+  void signalAllWhenBlocking() {
     if (signalNeeded_.exchange(false, std::memory_order_acq_rel)) {
       std::lock_guard<std::mutex> lock(mutex_);
       cv_.notify_all();
     }
   }
-
-  bool isBlockingStrategy() const noexcept override { return true; }
 
 private:
   std::mutex mutex_;

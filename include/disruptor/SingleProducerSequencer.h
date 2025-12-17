@@ -38,37 +38,40 @@ inline std::atomic<uint64_t> &sp_wrap_wait_loops() {
 namespace detail {
 
 // 112 bytes of padding (same shape as Java p10..p77).
-struct SpSequencerPad : public AbstractSequencer {
+template <typename WaitStrategyT>
+struct SpSequencerPad : public AbstractSequencer<WaitStrategyT> {
   std::byte p1[112]{};
-  SpSequencerPad(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
-      : AbstractSequencer(bufferSize, std::move(waitStrategy)) {}
+  SpSequencerPad(int bufferSize, WaitStrategyT waitStrategy)
+      : AbstractSequencer<WaitStrategyT>(bufferSize, std::move(waitStrategy)) {}
 };
 
-struct SpSequencerFields : public SpSequencerPad {
+template <typename WaitStrategyT>
+struct SpSequencerFields : public SpSequencerPad<WaitStrategyT> {
   int64_t nextValue_;
   int64_t cachedValue_;
-  SpSequencerFields(int bufferSize, std::unique_ptr<WaitStrategy> waitStrategy)
-      : SpSequencerPad(bufferSize, std::move(waitStrategy)),
+  SpSequencerFields(int bufferSize, WaitStrategyT waitStrategy)
+      : SpSequencerPad<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
         nextValue_(Sequence::INITIAL_VALUE),
         cachedValue_(Sequence::INITIAL_VALUE) {}
 };
 
 } // namespace detail
 
-class SingleProducerSequencer final : public detail::SpSequencerFields {
+template <typename WaitStrategyT>
+class SingleProducerSequencer final : public detail::SpSequencerFields<WaitStrategyT> {
 public:
   SingleProducerSequencer(int bufferSize,
-                          std::unique_ptr<WaitStrategy> waitStrategy)
-      : detail::SpSequencerFields(bufferSize, std::move(waitStrategy)),
+                          WaitStrategyT waitStrategy)
+      : detail::SpSequencerFields<WaitStrategyT>(bufferSize, std::move(waitStrategy)),
         gatingSequencesCache_(nullptr) {}
 
-  bool hasAvailableCapacity(int requiredCapacity) override {
+  bool hasAvailableCapacity(int requiredCapacity) {
     return hasAvailableCapacity(requiredCapacity, false);
   }
 
-  int64_t next() override { return next(1); }
+  int64_t next() { return next(1); }
 
-  int64_t next(int n) override {
+  int64_t next(int n) {
     // Java: assert sameThread() when assertions enabled. We keep a debug check.
     // IMPORTANT: This must be debug-only. A per-call mutex/map check destroys
     // SPSC performance and Java only performs this when assertions are enabled.
@@ -78,18 +81,18 @@ public:
           "Accessed by two threads - use ProducerType.MULTI!");
     }
 #endif
-    if (n < 1 || n > bufferSize_) {
+    if (n < 1 || n > this->bufferSize_) {
       throw std::invalid_argument("n must be > 0 and < bufferSize");
     }
 
-    int64_t nextValue = nextValue_;
+    int64_t nextValue = this->nextValue_;
     int64_t nextSequence = nextValue + n;
-    int64_t wrapPoint = nextSequence - bufferSize_;
-    int64_t cachedGatingSequence = cachedValue_;
+    int64_t wrapPoint = nextSequence - this->bufferSize_;
+    int64_t cachedGatingSequence = this->cachedValue_;
 
     if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue) {
       sp_wrap_wait_entries().fetch_add(1, std::memory_order_relaxed);
-      cursor_.setVolatile(nextValue); // StoreLoad fence
+      this->cursor_.setVolatile(nextValue); // StoreLoad fence
 
       int64_t minSequence;
       while (wrapPoint > (minSequence = minimumSequence(nextValue))) {
@@ -98,16 +101,16 @@ public:
         std::this_thread::yield();
       }
 
-      cachedValue_ = minSequence;
+      this->cachedValue_ = minSequence;
     }
 
-    nextValue_ = nextSequence;
+    this->nextValue_ = nextSequence;
     return nextSequence;
   }
 
-  int64_t tryNext() override { return tryNext(1); }
+  int64_t tryNext() { return tryNext(1); }
 
-  int64_t tryNext(int n) override {
+  int64_t tryNext(int n) {
     if (n < 1) {
       throw std::invalid_argument("n must be > 0");
     }
@@ -116,51 +119,48 @@ public:
       throw InsufficientCapacityException::INSTANCE();
     }
 
-    nextValue_ += n;
-    return nextValue_;
+    this->nextValue_ += n;
+    return this->nextValue_;
   }
 
-  int64_t remainingCapacity() override {
-    int64_t nextValue = nextValue_;
+  int64_t remainingCapacity() {
+    int64_t nextValue = this->nextValue_;
     int64_t consumed = minimumSequence(nextValue);
     int64_t produced = nextValue;
     return getBufferSize() - (produced - consumed);
   }
 
-  void claim(int64_t sequence) override { nextValue_ = sequence; }
+  void claim(int64_t sequence) { this->nextValue_ = sequence; }
 
-  void publish(int64_t sequence) override {
-    cursor_.set(sequence);
-    // Optimization: For non-blocking strategies (e.g. BusySpinWaitStrategy),
-    // signalOnPublish_ is false. Use [[unlikely]] to hint the compiler that
-    // this branch is rarely taken in hot paths (SPSC).
-    if (signalOnPublish_) [[unlikely]] {
-      waitStrategy_->signalAllWhenBlocking();
+  void publish(int64_t sequence) {
+    this->cursor_.set(sequence);
+    if constexpr (WaitStrategyT::kIsBlockingStrategy) {
+      this->waitStrategy_.signalAllWhenBlocking();
     }
   }
 
-  void publish(int64_t lo, int64_t hi) override { publish(hi); }
+  void publish(int64_t lo, int64_t hi) { (void)lo; publish(hi); }
 
-  bool isAvailable(int64_t sequence) override {
-    const int64_t currentSequence = cursor_.get();
+  bool isAvailable(int64_t sequence) {
+    const int64_t currentSequence = this->cursor_.get();
     return sequence <= currentSequence &&
-           sequence > currentSequence - bufferSize_;
+           sequence > currentSequence - this->bufferSize_;
   }
 
   int64_t getHighestPublishedSequence(int64_t /*lowerBound*/,
-                                      int64_t availableSequence) override {
+                                      int64_t availableSequence) {
     return availableSequence;
   }
 
   // Override to invalidate cache when gating sequences change
   void addGatingSequences(Sequence *const *gatingSequences,
-                          int count) override {
-    AbstractSequencer::addGatingSequences(gatingSequences, count);
+                          int count) {
+    AbstractSequencer<WaitStrategyT>::addGatingSequences(gatingSequences, count);
     gatingSequencesCache_ = nullptr; // Invalidate cache
   }
 
-  bool removeGatingSequence(Sequence &sequence) override {
-    bool result = AbstractSequencer::removeGatingSequence(sequence);
+  bool removeGatingSequence(Sequence &sequence) {
+    bool result = AbstractSequencer<WaitStrategyT>::removeGatingSequence(sequence);
     gatingSequencesCache_ = nullptr; // Invalidate cache
     return result;
   }
@@ -176,17 +176,17 @@ private:
   std::byte p2_[112 - sizeof(const std::vector<Sequence *> *)]{};
 
   bool hasAvailableCapacity(int requiredCapacity, bool doStore) {
-    int64_t nextValue = nextValue_;
-    int64_t wrapPoint = (nextValue + requiredCapacity) - bufferSize_;
-    int64_t cachedGatingSequence = cachedValue_;
+    int64_t nextValue = this->nextValue_;
+    int64_t wrapPoint = (nextValue + requiredCapacity) - this->bufferSize_;
+    int64_t cachedGatingSequence = this->cachedValue_;
 
     if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue) {
       if (doStore) {
-        cursor_.setVolatile(nextValue); // StoreLoad fence
+        this->cursor_.setVolatile(nextValue); // StoreLoad fence
       }
 
       int64_t minSequence = minimumSequence(nextValue);
-      cachedValue_ = minSequence;
+      this->cachedValue_ = minSequence;
 
       if (wrapPoint > minSequence) {
         return false;
@@ -205,7 +205,7 @@ private:
     if (!cached) {
       // Fallback: reload if cache is null (initialization or after
       // modifications)
-      auto snap = gatingSequences_.load(std::memory_order_acquire);
+      auto snap = this->gatingSequences_.load(std::memory_order_acquire);
       if (!snap) {
         return defaultMin;
       }
