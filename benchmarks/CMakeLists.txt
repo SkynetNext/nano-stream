@@ -18,8 +18,13 @@ file(GLOB_RECURSE NANO_STREAM_JMH_BENCH_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/jmh/*.cpp"
 )
 
+file(GLOB_RECURSE NANO_STREAM_PERFTEST_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/perftest/**/*.cpp"
+)
+
 add_executable(nano_stream_benchmarks
     ${NANO_STREAM_JMH_BENCH_SOURCES}
+    ${NANO_STREAM_PERFTEST_SOURCES}
     benchmark_main.cpp
 )
 
@@ -40,6 +45,7 @@ endif()
 target_include_directories(nano_stream_benchmarks
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Set optimization flags for benchmarks

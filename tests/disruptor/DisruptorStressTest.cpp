@@ -63,8 +63,10 @@ TEST(DisruptorStressTest, shouldHandleLotsOfThreads_smoke) {
 
   auto rb = d.start();
 
+  // Use full type to avoid name collision with outer scope 'rb'
+  using RingBufferType = decltype(rb)::element_type;
   struct Publisher {
-    decltype(rb) rb;
+    std::shared_ptr<RingBufferType> ringBuffer;
     int iterations;
     std::barrier<>* barrier;
     disruptor::test_support::CountDownLatch* done;
@@ -73,13 +75,13 @@ TEST(DisruptorStressTest, shouldHandleLotsOfThreads_smoke) {
       try {
         barrier->arrive_and_wait();
         for (int i = 0; i < iterations; ++i) {
-          int64_t next = rb->next();
-          auto& e = rb->get(next);
+          int64_t next = ringBuffer->next();
+          auto& e = ringBuffer->get(next);
           e.sequence = next;
           e.a = next + 13;
           e.b = next - 7;
           e.s = "wibble-" + std::to_string(next);
-          rb->publish(next);
+          ringBuffer->publish(next);
         }
       } catch (...) {
         failed = true;
