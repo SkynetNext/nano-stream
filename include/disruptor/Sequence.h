@@ -44,19 +44,18 @@ public:
   explicit Sequence(int64_t initial) noexcept : detail::RhsPadding(initial) {}
   virtual ~Sequence() = default;
 
-  // NOTE: Do not mark these virtual methods noexcept.
-  // Some derived Sequence types (e.g. FixedSequenceGroup) intentionally throw
-  // UnsupportedOperationException equivalents. C++ forbids widening exception
-  // specifications in overrides, so the base must not be noexcept here.
-  virtual int64_t get() const { return value_.load(std::memory_order_acquire); }
+  // Java: long value = this.value; VarHandle.acquireFence(); return value;
+  // C++: Use load(acquire) which is standard practice and provides clearer semantics.
+  virtual int64_t get() const {
+    return value_.load(std::memory_order_acquire);
+  }
   virtual void set(int64_t v) { value_.store(v, std::memory_order_release); }
 
   // Java: setVolatile - used as StoreLoad fence.
+  // Java: VarHandle.releaseFence(); this.value = value; VarHandle.fullFence();
+  // C++: Matches Java semantics - release fence + relaxed store + full fence.
+  // This pattern may provide better performance than a single seq_cst store.
   virtual void setVolatile(int64_t v) {
-    // Java reference:
-    //   VarHandle.releaseFence();
-    //   this.value = value;
-    //   VarHandle.fullFence();
     std::atomic_thread_fence(std::memory_order_release);
     value_.store(v, std::memory_order_relaxed);
     std::atomic_thread_fence(std::memory_order_seq_cst);
