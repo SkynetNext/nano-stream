@@ -106,21 +106,24 @@ int64_t minimumSequence(int64_t defaultMin) {
 
 **Expected impact**: **10-15% throughput improvement** by eliminating atomic shared_ptr operations from producer hot path.
 
-### Branch prediction hint for non-blocking strategies
+### Compile-time elimination of blocking strategy calls
 
-**Problem**: Even though `signalOnPublish_` correctly guards calls to `signalAllWhenBlocking()` for non-blocking strategies,
-perf showed 3.66% overhead attributed to `BusySpinWaitStrategy::signalAllWhenBlocking` calls.
+**Problem**: Perf showed overhead from `BusySpinWaitStrategy::signalAllWhenBlocking` calls even though the method is empty.
 
-**Solution**: Added `[[unlikely]]` attribute to the `if (signalOnPublish_)` branch in `SingleProducerSequencer::publish()`
-and `MultiProducerSequencer::publish()` to hint the compiler that this branch is cold for BusySpinWaitStrategy.
+**Solution**: Use `if constexpr` with `WaitStrategyT::kIsBlockingStrategy` compile-time constant to completely eliminate
+the branch and call for non-blocking strategies at compile time.
 
 ```cpp
-if (signalOnPublish_) [[unlikely]] {
-  waitStrategy_->signalAllWhenBlocking();
+void publish(int64_t sequence) {
+  this->cursor_.set(sequence);
+  if constexpr (WaitStrategyT::kIsBlockingStrategy) {
+    this->waitStrategy_->signalAllWhenBlocking();
+  }
 }
 ```
 
-**Expected impact**: 3-5% throughput improvement by eliminating branch misprediction and improving instruction cache utilization.
+**Impact**: Zero runtime overhead for non-blocking strategies (BusySpinWaitStrategy, YieldingWaitStrategy) - the branch
+and call are eliminated at compile time. This is better than `[[unlikely]]` because it's compile-time optimization.
 
 ### Blocking queue baseline
 
