@@ -47,7 +47,6 @@ cd build
 
 **Java (OneToOneSequencedThroughputTest):**
 ```bash
-cd reference/disruptor
 ./scripts/run_java_perftest.sh
 ```
 
