@@ -1,23 +1,13 @@
 # Benchmark Results (JMH-aligned Disruptor comparison)
 
-This repository contains a **1:1 C++ port of LMAX Disruptor** plus **aligned benchmarks** so we can compare:
-
-- **C++ (Google Benchmark)**: `benchmarks/jmh/**` (benchmarks are named `JMH_*`)
-- **Java (JMH)**: `reference/disruptor/src/jmh/java/**`
-
-The numbers below are taken from:
-
-- `benchmark_cpp.json` (Google Benchmark JSON, aggregates)
-- `benchmark_java.json` (JMH JSON)
-
-## Test environment (from `benchmark_cpp.json` context)
+## Test environment 
 
 | Property | Value |
 |----------|-------|
-| Host | runnervm6qbrg |
-| Date (UTC) | 2025-12-17T11:03:56+00:00 |
+| Host | runnervmh13bl |
+| Date (UTC) | 2025-12-18T08:21:46+00:00 |
 | CPU Cores | 4 |
-| CPU Frequency | 3241 MHz |
+| CPU Frequency | 3244 MHz |
 | CPU Scaling | Disabled |
 | ASLR | Enabled |
 
@@ -53,45 +43,38 @@ java -jar build/libs/*-jmh.jar -rf json -rff ../../benchmark_java.json -foe true
 bash scripts/compare_benchmarks.sh > comparison_report.md
 ```
 
-## Results summary (from the provided JSON)
+## Results Summary
 
-> Note on units:
-> - C++ aggregate `real_time` is **ns/op** (for these benchmarks). Convert to ops/s via \( \text{ops/s} = 10^9 / \text{ns/op} \).
-> - For multi-threaded C++ benchmarks, Google Benchmark reports **time per operation per thread**; total throughput is roughly \( \text{threads} \times 10^9 / \text{ns/op} \).
-> - Java `thrpt` results in this repo are in **ops/ms**; convert to ops/s by multiplying by 1000.
+### Key Performance Metrics
 
-### Single Producer / Single Consumer (SPSC)
+| Test | C++ Disruptor | Java Disruptor | C++ tbus | C++/Java Ratio |
+|------|---------------|----------------|----------|----------------|
+| **SPSC** | 462.7 Mops/sec | 130.3 Mops/sec | 47.9 Mops/sec | 3.55x |
+| **MP1C** | 553.0 Mops/sec | 36.4 Mops/sec | N/A | 15.2x |
+| **MP1C Batch** | 1650.0 Mops/sec | 204.6 Mops/sec | N/A | 8.06x |
+| **BlockingQueue** | 11.3 Mops/sec | 9.4 Mops/sec | N/A | 1.20x |
 
-Using the latest CI-aligned report (Generated: 2025-12-17 11:09 UTC):
+**Notes:**
+- **Units**: All results in **Mops/sec** (million operations per second)
+- **SPSC**: Single Producer Single Consumer
+- **MP1C**: Multi Producer Single Consumer (4 threads)
+- **tbus**: TSF4G tbus-style minimal SPSC implementation (C++ only)
+- **N/A**: Test not available for this implementation
 
-- **Java Disruptor** (`SingleProducerSingleConsumer.producing`, avgt): **~6.75 ns/op** → **~1.48e+08 ops/s**
-- **C++ Disruptor port** (`JMH_SingleProducerSingleConsumer_producing_mean`): **~7.81 ns/op** → **~1.28e+08 ops/s**
-- **C++ tbus-style SPSC baseline** (`JMH_TBusSingleProducerSingleConsumer_producing_mean`): **~15.0 ns/op** → **~6.68e+07 ops/s**
+### Data Sources
 
-Interpretation:
-- With padding + spin/fence alignment applied, CI runs on Linux reach **~0.86x** of Java for SPSC (ops/s).
-- The included **tbus-like SPSC** is faster than the C++ Disruptor SPSC, suggesting remaining overhead in the C++ port path (or scheduling/affinity effects).
+**C++ (from `benchmark_cpp.json`):**
+- SPSC: `JMH_SingleProducerSingleConsumer_producing_mean` → 2.161 ns/op → 462.7 Mops/sec
+- MP1C: `JMH_MultiProducerSingleConsumer_producing/threads:4_mean` → 7.233 ns/op/thread → 553.0 Mops/sec (4 threads)
+- MP1C Batch: `JMH_MultiProducerSingleConsumer_producingBatch/threads:4_mean` → 1650.0 Mops/sec (from items_per_second)
+- BlockingQueue: `JMH_BlockingQueueBenchmark_producing_mean` → 88.56 ns/op → 11.3 Mops/sec
+- tbus: `JMH_TBusSingleProducerSingleConsumer_producing_mean` → 20.87 ns/op → 47.9 Mops/sec
 
-### Multi Producer / Single Consumer (MP1C)
-
-- **Java Disruptor** (`MultiProducerSingleConsumer.producing`, thrpt): **~3.74e+07 ops/s** (from ~37356 ops/ms @ 4 threads)
-- **C++ Disruptor port** (`JMH_MultiProducerSingleConsumer_producing/threads:4_mean`): **~22.14 ns/op/thread** → **~4.52e+07 ops/s per thread**
-  - Approx total throughput (rule-of-thumb): **~1.81e+08 ops/s** (\(\approx 4 \times 10^9 / 22.14\))
-
-### Multi Producer / Single Consumer (batch publish)
-
-- **Java Disruptor** (`MultiProducerSingleConsumer.producingBatch`, thrpt): **~2.09e+08 ops/s**
-- **C++ Disruptor port** (`JMH_MultiProducerSingleConsumer_producingBatch/threads:4_mean`): **~2.37e+08 items/s** (from `items_per_second`)
-
-Interpretation:
-- **MP1C batch is already close** between Java and C++ on this data set (same order of magnitude, within ~a few percent).
-
-### Blocking queue baseline
-
-- **Java** (`BlockingQueueBenchmark.producing`, avgt): **~113 ns/op** → **~8.85e+06 ops/s**
-- **C++** (`JMH_BlockingQueueBenchmark_producing_mean`): **~713 ns/op** → **~1.40e+06 ops/s**
-
-This baseline is meant as a “traditional blocking queue” comparator. If C++ and Java baselines differ greatly, validate that the C++ baseline matches the Java `ArrayBlockingQueue` behavior closely (fairness, wakeup strategy, object reuse, etc.).
+**Java (from `benchmark_java.json`):**
+- SPSC: `SingleProducerSingleConsumer.producing` (avgt) → 7.674 ns/op → 130.3 Mops/sec
+- MP1C: `MultiProducerSingleConsumer.producing` (thrpt) → 36407.6 ops/ms → 36.4 Mops/sec
+- MP1C Batch: `MultiProducerSingleConsumer.producingBatch` (thrpt) → 204558.0 ops/ms → 204.6 Mops/sec
+- BlockingQueue: `BlockingQueueBenchmark.producing` (avgt) → 105.88 ns/op → 9.4 Mops/sec
 
 ## Caveats for interpreting cross-language numbers
 
@@ -99,9 +82,8 @@ This baseline is meant as a “traditional blocking queue” comparator. If C++ 
 - **OS/CPU differences**: Always compare results collected on the same machine if you want to attribute deltas to implementation differences.
 - **Thread scheduling**: MP benchmarks are sensitive to core pinning, background load, and timer resolution.
 
-## What to do next (optimization direction)
+## Analysis
 
-- **Prioritize SPSC**: It is currently the largest gap (C++ ~0.36x Java in ops/s in the aligned 1P1C publish test).
-- **Use the included baselines**:
-  - `JMH_EmptyLoop_DoNotOptimize` helps bound measurement noise.
-  - `JMH_TBusSingleProducerSingleConsumer_producing` helps separate “sequencer/disruptor overhead” from “minimal ring mechanics”.
+- **C++ Disruptor significantly outperforms Java** across all test scenarios (3.55x to 15.2x faster).
+- **C++ tbus** (minimal SPSC) is slower than both C++ and Java Disruptor, suggesting the Disruptor implementation has optimizations beyond basic ring buffer mechanics.
+- **BlockingQueue baseline**: C++ and Java are close (1.20x ratio), validating the baseline implementation.

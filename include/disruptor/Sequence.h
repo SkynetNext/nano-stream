@@ -45,11 +45,21 @@ public:
   virtual ~Sequence() = default;
 
   // Java: long value = this.value; VarHandle.acquireFence(); return value;
-  // C++: Use load(acquire) which is standard practice and provides clearer semantics.
+  // Java reads a plain field (not volatile), then executes acquireFence.
+  // This allows reading a "slightly stale" value, which may reduce memory barrier overhead.
+  // C++: Match Java semantics - relaxed load + acquire fence.
   virtual int64_t get() const {
-    return value_.load(std::memory_order_acquire);
+    int64_t value = value_.load(std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    return value;
   }
-  virtual void set(int64_t v) { value_.store(v, std::memory_order_release); }
+  // Java: VarHandle.releaseFence(); this.value = value;
+  // Java executes release fence first, then writes to plain field (not volatile).
+  // C++: Match Java semantics - release fence + relaxed store.
+  virtual void set(int64_t v) {
+    std::atomic_thread_fence(std::memory_order_release);
+    value_.store(v, std::memory_order_relaxed);
+  }
 
   // Java: setVolatile - used as StoreLoad fence.
   // Java: VarHandle.releaseFence(); this.value = value; VarHandle.fullFence();

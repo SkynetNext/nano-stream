@@ -174,12 +174,6 @@ public:
 
     // Set batch data (Java does this before waitForEventProcessorSequence, but we do it after to ensure accurate count)
     perfTestContext.setBatchData(batchesProcessed, kIterations);
-    
-    // Debug output to verify batchesProcessed count
-    std::cerr << "DEBUG: batchesProcessed=" << batchesProcessed 
-              << ", iterations=" << kIterations 
-              << ", elapsedMs=" << elapsedMs
-              << ", avgBatchSize=" << (batchesProcessed > 0 ? (double)kIterations / batchesProcessed : 0.0) << std::endl;
 
     // Verify result (Java: failIfNot(expectedResult, handler.getValue()))
     failIfNot(expectedResult_, handler_->getValue());
@@ -242,6 +236,7 @@ void PerfTest_OneToOneSequencedThroughputTest(benchmark::State& state) {
   // The instance is reused across all 7 runs, matching Java's structure
   static OneToOneSequencedThroughputTest* test = nullptr;
   static bool headerPrinted = false;
+  static int runCounter = 0;
   
   if (test == nullptr) {
     test = new OneToOneSequencedThroughputTest();
@@ -267,8 +262,8 @@ void PerfTest_OneToOneSequencedThroughputTest(benchmark::State& state) {
     int64_t ops = context.getDisruptorOps();
     double batchPercent = context.getBatchPercent() * 100.0;
     double avgBatchSize = context.getAverageBatchSize();
-    std::printf("Run %zu, Disruptor=%lld ops/sec BatchPercent=%.2f%% AverageBatchSize=%.0f\n",
-                state.iterations() - 1, // 0-indexed like Java
+    std::printf("Run %d, Disruptor=%lld ops/sec BatchPercent=%.2f%% AverageBatchSize=%.0f\n",
+                runCounter++,
                 ops, batchPercent, avgBatchSize);
     
     // Report to Google Benchmark for statistics
