@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "disruptor/BatchEventProcessorBuilder.h"
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/RingBuffer.h"
 #include "tests/disruptor/support/StubEvent.h"
 #include "tests/disruptor/test_support/CountDownLatch.h"
@@ -41,8 +42,11 @@ private:
 } // namespace
 
 TEST(MaxBatchSizeEventProcessorTest, shouldLimitTheBatchToConfiguredMaxBatchSize) {
-  auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::StubEvent>::createSingleProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::SingleProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createSingleProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16, ws);
   auto sequenceBarrier = ringBuffer->newBarrier(nullptr, 0);
 
   disruptor::test_support::CountDownLatch latch(PUBLISH_COUNT);
@@ -71,8 +75,11 @@ TEST(MaxBatchSizeEventProcessorTest, shouldLimitTheBatchToConfiguredMaxBatchSize
 }
 
 TEST(MaxBatchSizeEventProcessorTest, shouldAnnounceBatchSizeAndQueueDepthAtTheStartOfBatch) {
-  auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::StubEvent>::createSingleProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::SingleProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createSingleProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16, ws);
   auto sequenceBarrier = ringBuffer->newBarrier(nullptr, 0);
 
   disruptor::test_support::CountDownLatch latch(PUBLISH_COUNT);

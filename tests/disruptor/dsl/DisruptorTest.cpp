@@ -27,10 +27,12 @@ public:
 } // namespace
 
 TEST(DisruptorTest, shouldHaveStartedAfterStartCalled) {
+  using Event = disruptor::support::TestEvent;
+  using WS = disruptor::BlockingWaitStrategy;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
-  disruptor::dsl::Disruptor<disruptor::support::TestEvent> d(
-      disruptor::support::TestEvent::EVENT_FACTORY, 1024, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
+  WS ws;
+  disruptor::dsl::Disruptor<Event, disruptor::dsl::ProducerType::MULTI, WS> d(
+      disruptor::support::TestEvent::EVENT_FACTORY, 1024, tf, ws);
 
   EXPECT_FALSE(d.hasStarted());
   d.start();
@@ -39,10 +41,12 @@ TEST(DisruptorTest, shouldHaveStartedAfterStartCalled) {
 }
 
 TEST(DisruptorTest, shouldProcessMessagesPublishedBeforeStartIsCalled) {
+  using Event = disruptor::support::TestEvent;
+  using WS = disruptor::BlockingWaitStrategy;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BlockingWaitStrategy>();
-  disruptor::dsl::Disruptor<disruptor::support::TestEvent> d(
-      disruptor::support::TestEvent::EVENT_FACTORY, 1024, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
+  WS ws;
+  disruptor::dsl::Disruptor<Event, disruptor::dsl::ProducerType::MULTI, WS> d(
+      disruptor::support::TestEvent::EVENT_FACTORY, 1024, tf, ws);
 
   disruptor::test_support::CountDownLatch latch(2);
   LatchHandler handler(latch);

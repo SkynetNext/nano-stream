@@ -14,38 +14,42 @@
 namespace {
 static constexpr int BUFFER_SIZE = 16;
 
-std::unique_ptr<disruptor::Sequencer> newProducer(disruptor::dsl::ProducerType producerType,
-                                                 std::unique_ptr<disruptor::WaitStrategy> waitStrategy) {
-  switch (producerType) {
-    case disruptor::dsl::ProducerType::SINGLE:
-      return std::make_unique<disruptor::SingleProducerSequencer>(BUFFER_SIZE, std::move(waitStrategy));
-    case disruptor::dsl::ProducerType::MULTI:
-      return std::make_unique<disruptor::MultiProducerSequencer>(BUFFER_SIZE, std::move(waitStrategy));
-    default:
-      throw std::runtime_error("bad producer type");
-  }
+template <typename WS>
+auto newSingleProducer(int bufferSize, WS& ws) {
+  return std::make_unique<disruptor::SingleProducerSequencer<WS>>(bufferSize, ws);
+}
+
+template <typename WS>
+auto newMultiProducer(int bufferSize, WS& ws) {
+  return std::make_unique<disruptor::MultiProducerSequencer<WS>>(bufferSize, ws);
 }
 } // namespace
 
 TEST(SequencerTest, shouldStartWithInitialValue_single) {
-  auto s = newProducer(disruptor::dsl::ProducerType::SINGLE, std::make_unique<disruptor::BlockingWaitStrategy>());
+  using WS = disruptor::BlockingWaitStrategy;
+  WS ws;
+  auto s = newSingleProducer(BUFFER_SIZE, ws);
   EXPECT_EQ(0, s->next());
 }
 
 TEST(SequencerTest, shouldStartWithInitialValue_multi) {
-  auto s = newProducer(disruptor::dsl::ProducerType::MULTI, std::make_unique<disruptor::BlockingWaitStrategy>());
+  using WS = disruptor::BlockingWaitStrategy;
+  WS ws;
+  auto s = newMultiProducer(BUFFER_SIZE, ws);
   EXPECT_EQ(0, s->next());
 }
 
 TEST(SequencerTest, shouldBatchClaim) {
-  auto s = newProducer(disruptor::dsl::ProducerType::SINGLE, std::make_unique<disruptor::BlockingWaitStrategy>());
+  using WS = disruptor::BlockingWaitStrategy;
+  WS ws;
+  auto s = newSingleProducer(BUFFER_SIZE, ws);
   EXPECT_EQ(3, s->next(4));
 }
 
 TEST(SequencerTest, shouldNotifyWaitStrategyOnPublish) {
-  auto ws = std::make_unique<disruptor::support::DummyWaitStrategy>();
-  auto* wsRaw = ws.get();
-  auto s = newProducer(disruptor::dsl::ProducerType::SINGLE, std::move(ws));
+  using WS = disruptor::support::DummyWaitStrategy;
+  WS ws;
+  auto s = newSingleProducer(BUFFER_SIZE, ws);
   s->publish(s->next());
-  EXPECT_EQ(wsRaw->signalAllWhenBlockingCalls, 1);
+  EXPECT_EQ(ws.signalAllWhenBlockingCalls, 1);
 }

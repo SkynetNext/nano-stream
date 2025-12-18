@@ -12,7 +12,7 @@ namespace disruptor::support {
 
 class DummyEventProcessor final : public ::disruptor::EventProcessor {
 public:
-  DummyEventProcessor() : sequence_(::disruptor::SingleProducerSequencer::INITIAL_CURSOR_VALUE) {}
+  DummyEventProcessor() : sequence_(::disruptor::Sequencer::INITIAL_CURSOR_VALUE) {}
   explicit DummyEventProcessor(int64_t initialSequence) : sequence_(initialSequence) {}
 
   void setSequence(int64_t sequence) { sequence_.set(sequence); }

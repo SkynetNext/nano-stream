@@ -50,29 +50,47 @@ public:
 class BatchingTestFixture : public ::testing::TestWithParam<disruptor::dsl::ProducerType> {};
 
 TEST_P(BatchingTestFixture, shouldBatch) {
+  using Event = disruptor::support::LongEvent;
+  using WS = disruptor::SleepingWaitStrategy;
   const auto producerType = GetParam();
 
-  auto waitStrategy = std::make_unique<disruptor::SleepingWaitStrategy>();
+  WS waitStrategy;
   auto& threadFactory = disruptor::util::DaemonThreadFactory::INSTANCE();
-
-  disruptor::dsl::Disruptor<disruptor::support::LongEvent> d(
-      disruptor::support::LongEvent::FACTORY, 2048, threadFactory, producerType, std::move(waitStrategy));
 
   ParallelEventHandler handler1(1, 0);
   ParallelEventHandler handler2(1, 1);
-  d.handleEventsWith(handler1, handler2);
-
-  auto buffer = d.start();
-
   SetSequenceTranslator translator;
   constexpr int eventCount = 10000;
-  for (int i = 0; i < eventCount; ++i) {
-    buffer->publishEvent(translator);
-  }
 
-  while (handler1.processed.load(std::memory_order_acquire) != eventCount - 1 ||
-         handler2.processed.load(std::memory_order_acquire) != eventCount - 1) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  // Use runtime dispatch since producerType is not a compile-time constant
+  if (producerType == disruptor::dsl::ProducerType::SINGLE) {
+    disruptor::dsl::Disruptor<Event, disruptor::dsl::ProducerType::SINGLE, WS> d(
+        disruptor::support::LongEvent::FACTORY, 2048, threadFactory, waitStrategy);
+    d.handleEventsWith(handler1, handler2);
+    auto buffer = d.start();
+    
+    for (int i = 0; i < eventCount; ++i) {
+      buffer->publishEvent(translator);
+    }
+    
+    while (handler1.processed.load(std::memory_order_acquire) != eventCount - 1 ||
+           handler2.processed.load(std::memory_order_acquire) != eventCount - 1) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  } else {
+    disruptor::dsl::Disruptor<Event, disruptor::dsl::ProducerType::MULTI, WS> d(
+        disruptor::support::LongEvent::FACTORY, 2048, threadFactory, waitStrategy);
+    d.handleEventsWith(handler1, handler2);
+    auto buffer = d.start();
+    
+    for (int i = 0; i < eventCount; ++i) {
+      buffer->publishEvent(translator);
+    }
+    
+    while (handler1.processed.load(std::memory_order_acquire) != eventCount - 1 ||
+           handler2.processed.load(std::memory_order_acquire) != eventCount - 1) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
   }
 
   EXPECT_EQ(eventCount - 2, handler1.publishedValue);

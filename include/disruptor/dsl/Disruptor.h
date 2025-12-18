@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -70,15 +71,15 @@ public:
 
   Disruptor(std::shared_ptr<EventFactory<T>> eventFactory, int ringBufferSize,
             ThreadFactory &threadFactory)
-      : ownedWaitStrategy_(),
+      : ownedWaitStrategy_(std::in_place),
         ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
-                                    ownedWaitStrategy_)),
+                                    *ownedWaitStrategy_)),
         threadFactory_(threadFactory), consumerRepository_(), started_(false),
         exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
 
   Disruptor(std::shared_ptr<EventFactory<T>> eventFactory, int ringBufferSize,
             ThreadFactory &threadFactory, WaitStrategyT &waitStrategy)
-      : ownedWaitStrategy_(),
+      : ownedWaitStrategy_(std::nullopt),
         ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
                                     waitStrategy)),
         threadFactory_(threadFactory), consumerRepository_(), started_(false),
@@ -252,13 +253,15 @@ private:
     ownedBarriers_.push_back(barrier);
   }
 
+  // Owning wait strategy storage so non-movable strategies (mutex/cv) work.
+  // Only used when no external WaitStrategy is provided (first constructor).
+  // Must be declared before ringBuffer_ so it's initialized first (ringBuffer_ needs a reference to it).
+  std::optional<WaitStrategyT> ownedWaitStrategy_;
   std::shared_ptr<RingBufferT> ringBuffer_;
   ThreadFactory &threadFactory_;
   ConsumerRepository<BarrierPtr> consumerRepository_;
   std::atomic<bool> started_;
   ExceptionHandler<T> *exceptionHandler_;
-  // Owning wait strategy storage so non-movable strategies (mutex/cv) work.
-  WaitStrategyT ownedWaitStrategy_;
   // Hold SequenceBarriers created by the DSL to ensure they outlive processors
   // that reference them.
   std::vector<BarrierPtr> ownedBarriers_;

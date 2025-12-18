@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "disruptor/AlertException.h"
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/NoOpEventProcessor.h"
 #include "disruptor/RingBuffer.h"
 #include "disruptor/Sequence.h"
@@ -14,7 +15,8 @@
 #include <thread>
 
 namespace {
-void fillRingBuffer(disruptor::RingBuffer<disruptor::support::StubEvent>& ringBuffer, int64_t expectedNumberMessages) {
+template <typename RB>
+void fillRingBuffer(RB& ringBuffer, int64_t expectedNumberMessages) {
   for (int64_t i = 0; i < expectedNumberMessages; ++i) {
     const int64_t sequence = ringBuffer.next();
     auto& event = ringBuffer.get(sequence);
@@ -40,14 +42,19 @@ private:
 
 class SequenceBarrierTestFixture : public ::testing::Test {
 protected:
-  std::shared_ptr<disruptor::RingBuffer<disruptor::support::StubEvent>> ringBuffer =
-      disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 64);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  
+  WS ws;
+  std::shared_ptr<RB> ringBuffer =
+      RB::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 64, ws);
 
   SequenceBarrierTestFixture() {
     ringBuffer->addGatingSequences(noOp.getSequence());
   }
 
-  disruptor::NoOpEventProcessor<disruptor::support::StubEvent> noOp{*ringBuffer};
+  disruptor::NoOpEventProcessor<Event, RB> noOp{*ringBuffer};
 };
 
 TEST_F(SequenceBarrierTestFixture, shouldWaitForWorkCompleteWhereCompleteWorkThresholdIsAhead) {

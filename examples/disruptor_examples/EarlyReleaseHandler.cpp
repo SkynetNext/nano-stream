@@ -46,8 +46,7 @@ private:
 int main() {
   using Event = disruptor_examples::support::LongEvent;
   using WS = disruptor::BlockingWaitStrategy;
-  using Seq = disruptor::SingleProducerSequencer<WS>;
-  using RingBufferT = disruptor::RingBuffer<Event, Seq>;
+  using RingBufferT = disruptor::SingleProducerRingBuffer<Event, WS>;
 
   WS ws;
   auto rb = RingBufferT::createSingleProducer(Event::FACTORY, 1024, ws);

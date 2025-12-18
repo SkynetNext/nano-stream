@@ -21,9 +21,12 @@ private:
 } // namespace
 
 TEST(EventPollerTest, shouldPollForEvents) {
+  using WS = disruptor::BusySpinWaitStrategy;
+  using Seq = disruptor::SingleProducerSequencer<WS>;
+  
   disruptor::Sequence gatingSequence;
-  auto waitStrategy = std::make_unique<disruptor::BusySpinWaitStrategy>();
-  disruptor::SingleProducerSequencer sequencer(16, std::move(waitStrategy));
+  WS waitStrategy;
+  Seq sequencer(16, waitStrategy);
 
   std::array<void*, 16> data{};
   // DataProvider<Object> provider = sequence -> data[(int) sequence];
@@ -36,42 +39,49 @@ TEST(EventPollerTest, shouldPollForEvents) {
   } provider(data);
 
   disruptor::Sequence* gatingArr[1] = {&gatingSequence};
-  auto poller = sequencer.newPoller(provider, gatingArr, 1);
+  auto sequence = std::make_shared<disruptor::Sequence>(0);
+  auto& cursorSequence = sequencer.cursorSequence();
+  auto poller = disruptor::EventPoller<void*, Seq>::newInstance(provider, sequencer, sequence, cursorSequence, gatingArr, 1);
 
-  struct Handler final : public disruptor::EventPoller<void*>::Handler {
+  using PollerT = disruptor::EventPoller<void*, Seq>;
+  struct Handler final : public PollerT::Handler {
     bool onEvent(void*& /*event*/, int64_t /*sequence*/, bool /*endOfBatch*/) override { return false; }
   } handler;
 
   int x = 1;
   data[0] = &x;
 
-  EXPECT_EQ(disruptor::EventPoller<void*>::PollState::IDLE, poller->poll(handler));
+  EXPECT_EQ(PollerT::PollState::IDLE, poller->poll(handler));
 
   sequencer.publish(sequencer.next());
-  EXPECT_EQ(disruptor::EventPoller<void*>::PollState::GATING, poller->poll(handler));
+  EXPECT_EQ(PollerT::PollState::GATING, poller->poll(handler));
 
   gatingSequence.incrementAndGet();
-  EXPECT_EQ(disruptor::EventPoller<void*>::PollState::PROCESSING, poller->poll(handler));
+  EXPECT_EQ(PollerT::PollState::PROCESSING, poller->poll(handler));
 }
 
 TEST(EventPollerTest, shouldSuccessfullyPollWhenBufferIsFull) {
-  std::vector<std::array<uint8_t, 1>> events;
+  using Event = std::array<uint8_t, 1>;
+  using WS = disruptor::SleepingWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  
+  std::vector<Event> events;
 
-  struct Handler final : public disruptor::EventPoller<std::array<uint8_t, 1>>::Handler {
-    explicit Handler(std::vector<std::array<uint8_t, 1>>& events) : events_(&events) {}
-    bool onEvent(std::array<uint8_t, 1>& event, int64_t /*sequence*/, bool endOfBatch) override {
+  WS ws;
+  struct Factory final : public disruptor::EventFactory<Event> {
+    Event newInstance() override { return Event{0}; }
+  };
+  auto ringBuffer = RB::createMultiProducer(std::make_shared<Factory>(), 4, ws);
+
+  using PollerT = disruptor::EventPoller<Event, typename RB::SequencerType>;
+  struct Handler final : public PollerT::Handler {
+    explicit Handler(std::vector<Event>& events) : events_(&events) {}
+    bool onEvent(Event& event, int64_t /*sequence*/, bool endOfBatch) override {
       events_->push_back(event);
       return !endOfBatch;
     }
-    std::vector<std::array<uint8_t, 1>>* events_;
+    std::vector<Event>* events_;
   } handler(events);
-
-  struct Factory final : public disruptor::EventFactory<std::array<uint8_t, 1>> {
-    std::array<uint8_t, 1> newInstance() override { return std::array<uint8_t, 1>{0}; }
-  };
-
-  auto ringBuffer = disruptor::RingBuffer<std::array<uint8_t, 1>>::createMultiProducer(
-      std::make_shared<Factory>(), 4, std::make_unique<disruptor::SleepingWaitStrategy>());
 
   auto poller = ringBuffer->newPoller();
   ringBuffer->addGatingSequences(poller->getSequence());

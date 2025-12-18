@@ -1,8 +1,8 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.support.SequenceUpdater
+// Updated for template-based architecture: template on WaitStrategy type
 
 #include "disruptor/Sequence.h"
-#include "disruptor/WaitStrategy.h"
 
 #include <barrier>
 #include <chrono>
@@ -10,11 +10,12 @@
 
 namespace disruptor::support {
 
+template <typename WaitStrategyT>
 class SequenceUpdater final {
 public:
   ::disruptor::Sequence sequence;
 
-  SequenceUpdater(int64_t sleepTimeMillis, ::disruptor::WaitStrategy& waitStrategy)
+  SequenceUpdater(int64_t sleepTimeMillis, WaitStrategyT& waitStrategy)
       : barrier_(2), sleepTimeMillis_(sleepTimeMillis), waitStrategy_(&waitStrategy) {}
 
   void operator()() { run(); }
@@ -37,7 +38,7 @@ public:
 private:
   std::barrier<> barrier_;
   int64_t sleepTimeMillis_;
-  ::disruptor::WaitStrategy* waitStrategy_;
+  WaitStrategyT* waitStrategy_;
 };
 
 } // namespace disruptor::support

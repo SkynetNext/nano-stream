@@ -2,6 +2,7 @@
 
 #include "disruptor/BatchEventProcessor.h"
 #include "disruptor/BatchEventProcessorBuilder.h"
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/RingBuffer.h"
 #include "tests/disruptor/support/StubEvent.h"
 #include "tests/disruptor/test_support/CountDownLatch.h"
@@ -40,7 +41,13 @@ TEST(SequenceReportingCallbackTest, shouldReportProgressByUpdatingSequenceViaCal
   disruptor::test_support::CountDownLatch onEndOfBatchLatch(1);
 
   auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16);
+      []() {
+        using Event = disruptor::support::StubEvent;
+        using WS = disruptor::BusySpinWaitStrategy;
+        using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+        WS ws;
+        return RB::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16, ws);
+      }();
   auto sequenceBarrier = ringBuffer->newBarrier(nullptr, 0);
 
   TestSequenceReportingEventHandler handler(callbackLatch, onEndOfBatchLatch);

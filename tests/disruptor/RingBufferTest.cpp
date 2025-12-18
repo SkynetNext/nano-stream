@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/NoOpEventProcessor.h"
 #include "disruptor/RingBuffer.h"
 #include "disruptor/Sequence.h"
@@ -8,13 +9,17 @@
 #include <string>
 
 TEST(RingBufferTest, shouldClaimAndGet) {
-  auto ringBuffer = disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 32);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  WS ws;
+  auto ringBuffer = disruptor::MultiProducerRingBuffer<Event, WS>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 32, ws);
   auto barrier = ringBuffer->newBarrier(nullptr, 0);
 
-  disruptor::NoOpEventProcessor<disruptor::support::StubEvent> noop(*ringBuffer);
+  using RB = std::remove_reference_t<decltype(*ringBuffer)>;
+  disruptor::NoOpEventProcessor<Event, RB> noop(*ringBuffer);
   ringBuffer->addGatingSequences(noop.getSequence());
 
-  EXPECT_EQ(disruptor::SingleProducerSequencer::INITIAL_CURSOR_VALUE, ringBuffer->getCursor());
+  EXPECT_EQ(disruptor::Sequencer::INITIAL_CURSOR_VALUE, ringBuffer->getCursor());
 
   ringBuffer->publishEvent(disruptor::support::StubEvent::TRANSLATOR, 2701, std::string{});
   int64_t seq = barrier->waitFor(0);
@@ -24,7 +29,10 @@ TEST(RingBufferTest, shouldClaimAndGet) {
 }
 
 TEST(RingBufferTest, shouldPreventWrapping) {
-  auto rb = disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 4);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  WS ws;
+  auto rb = disruptor::MultiProducerRingBuffer<Event, WS>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 4, ws);
   disruptor::Sequence gating(disruptor::Sequencer::INITIAL_CURSOR_VALUE);
   rb->addGatingSequences(gating);
 
@@ -37,7 +45,10 @@ TEST(RingBufferTest, shouldPreventWrapping) {
 }
 
 TEST(RingBufferTest, shouldThrowExceptionIfBufferIsFull) {
-  auto ringBuffer = disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 32);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  WS ws;
+  auto ringBuffer = disruptor::MultiProducerRingBuffer<Event, WS>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 32, ws);
   auto barrier = ringBuffer->newBarrier(nullptr, 0);
   (void)barrier;
 

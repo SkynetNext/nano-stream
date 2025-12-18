@@ -2,7 +2,9 @@
 // 1:1 port of com.lmax.disruptor.RingBuffer
 // Source: reference/disruptor/src/main/java/com/lmax/disruptor/RingBuffer.java
 
+#include "AbstractSequencer.h"
 #include "BlockingWaitStrategy.h"
+#include "Cursored.h"
 #include "DataProvider.h"
 #include "EventFactory.h"
 #include "EventPoller.h"
@@ -19,8 +21,6 @@
 
 #include "dsl/ProducerType.h"
 
-#include "AbstractSequencer.h"
-
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -32,7 +32,7 @@ namespace disruptor {
 
 // Template RingBuffer: parameterized by the concrete Sequencer type.
 template <typename E, typename SequencerT>
-class RingBuffer final : public DataProvider<E> {
+class RingBuffer final : public DataProvider<E>, public Cursored {
 public:
   static constexpr int64_t INITIAL_CURSOR_VALUE = Sequence::INITIAL_VALUE;
   using SequencerType = SequencerT;
@@ -61,7 +61,8 @@ public:
   // DataProvider
   E &get(int64_t sequence) override { return elementAt(sequence); }
 
-  int64_t getCursor() const { return sequencer().getCursor(); }
+  // Cursored
+  int64_t getCursor() const override { return sequencer().getCursor(); }
 
   // RingBuffer-specific helpers from Java
   void addGatingSequences(Sequence *const *gatingSequences, int count) {
@@ -322,5 +323,14 @@ private:
     return usingValue_ ? *sequencerValue_ : *sequencerOwner_;
   }
 };
+
+// Type aliases to simplify API usage (avoid explicit Sequencer type specification)
+template <typename E, typename WaitStrategyT>
+using SingleProducerRingBuffer =
+    RingBuffer<E, SingleProducerSequencer<WaitStrategyT>>;
+
+template <typename E, typename WaitStrategyT>
+using MultiProducerRingBuffer =
+    RingBuffer<E, MultiProducerSequencer<WaitStrategyT>>;
 
 } // namespace disruptor

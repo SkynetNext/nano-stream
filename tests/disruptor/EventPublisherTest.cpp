@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/NoOpEventProcessor.h"
 #include "disruptor/RingBuffer.h"
 #include "disruptor/Sequence.h"
@@ -15,10 +16,13 @@ public:
 } // namespace
 
 TEST(EventPublisherTest, shouldPublishEvent) {
-  auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::LongEvent>::createMultiProducer(disruptor::support::LongEvent::FACTORY, BUFFER_SIZE);
+  using Event = disruptor::support::LongEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createMultiProducer(disruptor::support::LongEvent::FACTORY, BUFFER_SIZE, ws);
 
-  disruptor::NoOpEventProcessor<disruptor::support::LongEvent> noop(*ringBuffer);
+  disruptor::NoOpEventProcessor<Event, RB> noop(*ringBuffer);
   ringBuffer->addGatingSequences(noop.getSequence());
 
   EventPublisherTestTranslator translator;
@@ -30,8 +34,11 @@ TEST(EventPublisherTest, shouldPublishEvent) {
 }
 
 TEST(EventPublisherTest, shouldTryPublishEvent) {
-  auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::LongEvent>::createMultiProducer(disruptor::support::LongEvent::FACTORY, BUFFER_SIZE);
+  using Event = disruptor::support::LongEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createMultiProducer(disruptor::support::LongEvent::FACTORY, BUFFER_SIZE, ws);
 
   disruptor::Sequence gating;
   ringBuffer->addGatingSequences(gating);

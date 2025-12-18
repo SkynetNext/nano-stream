@@ -22,28 +22,40 @@ public:
   static constexpr bool kIsBlockingStrategy =
       FallbackStrategy::kIsBlockingStrategy;
 
+  // Constructor that accepts an existing fallback strategy (by reference for non-movable types)
+  template <typename FS = FallbackStrategy>
   PhasedBackoffWaitStrategy(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos,
-                            FallbackStrategy fallbackStrategy)
+                            FS&& fallbackStrategy)
       : spinTimeoutNanos_(spinTimeoutNanos),
         yieldTimeoutNanos_(spinTimeoutNanos + yieldTimeoutNanos),
-        fallbackStrategy_(std::move(fallbackStrategy)) {}
+        fallbackStrategy_(std::forward<FS>(fallbackStrategy)) {}
 
+  // Private constructor for direct construction (used by static factory methods)
+private:
+  template <typename... Args>
+  PhasedBackoffWaitStrategy(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos,
+                            std::in_place_t, Args&&... args)
+      : spinTimeoutNanos_(spinTimeoutNanos),
+        yieldTimeoutNanos_(spinTimeoutNanos + yieldTimeoutNanos),
+        fallbackStrategy_(std::forward<Args>(args)...) {}
+
+public:
   static PhasedBackoffWaitStrategy<BlockingWaitStrategy>
   withLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
     return PhasedBackoffWaitStrategy<BlockingWaitStrategy>(
-        spinTimeoutNanos, yieldTimeoutNanos, BlockingWaitStrategy());
+        spinTimeoutNanos, yieldTimeoutNanos, std::in_place);
   }
 
   static PhasedBackoffWaitStrategy<LiteBlockingWaitStrategy>
   withLiteLock(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
     return PhasedBackoffWaitStrategy<LiteBlockingWaitStrategy>(
-        spinTimeoutNanos, yieldTimeoutNanos, LiteBlockingWaitStrategy());
+        spinTimeoutNanos, yieldTimeoutNanos, std::in_place);
   }
 
   static PhasedBackoffWaitStrategy<SleepingWaitStrategy>
   withSleep(int64_t spinTimeoutNanos, int64_t yieldTimeoutNanos) {
     return PhasedBackoffWaitStrategy<SleepingWaitStrategy>(
-        spinTimeoutNanos, yieldTimeoutNanos, SleepingWaitStrategy(0));
+        spinTimeoutNanos, yieldTimeoutNanos, std::in_place, 0);
   }
 
   template <typename Barrier>

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "disruptor/BatchEventProcessorBuilder.h"
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/RingBuffer.h"
 #include "disruptor/SimpleBatchRewindStrategy.h"
 #include "tests/disruptor/support/LongEvent.h"
@@ -15,7 +16,11 @@ public:
 } // namespace
 
 TEST(RewindBatchEventProcessorTest, shouldRunWithRewindableHandler_smoke) {
-  auto ringBuffer = disruptor::RingBuffer<disruptor::support::LongEvent>::createMultiProducer(disruptor::support::LongEvent::FACTORY, 1024);
+  using Event = disruptor::support::LongEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createMultiProducer(disruptor::support::LongEvent::FACTORY, 1024, ws);
   auto barrier = ringBuffer->newBarrier(nullptr, 0);
 
   NoThrowRewindableHandler handler;

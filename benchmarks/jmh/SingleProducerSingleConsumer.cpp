@@ -26,10 +26,10 @@ JMH_SingleProducerSingleConsumer_producing(benchmark::State &state) {
   auto factory =
       std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
 
-  auto rb = disruptor::RingBuffer<
+  auto rb = disruptor::SingleProducerRingBuffer<
       nano_stream::bench::jmh::SimpleEvent,
-      disruptor::SingleProducerSequencer<disruptor::BusySpinWaitStrategy>>::
-      createSingleProducer(factory, kRingBufferSize, ws);
+      disruptor::BusySpinWaitStrategy>::createSingleProducer(
+      factory, kRingBufferSize, ws);
 
   // 1:1 with Java benchmark body:
   //   long sequence = ringBuffer.next();

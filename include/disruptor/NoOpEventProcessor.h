@@ -10,13 +10,14 @@
 #include <atomic>
 #include <cstdint>
 #include <stdexcept>
+#include <type_traits>
 
 namespace disruptor {
 
-template <typename T>
+template <typename T, typename RingBufferT>
 class NoOpEventProcessor final : public EventProcessor {
 public:
-  explicit NoOpEventProcessor(RingBuffer<T>& sequencer)
+  explicit NoOpEventProcessor(RingBufferT& sequencer)
       : sequence_(sequencer), running_(false) {}
 
   Sequence& getSequence() override { return sequence_; }
@@ -36,13 +37,15 @@ private:
   // Java inner SequencerFollowingSequence extends Sequence and wraps RingBuffer.getCursor().
   class SequencerFollowingSequence final : public Sequence {
   public:
-    explicit SequencerFollowingSequence(RingBuffer<T>& sequencer)
-        : Sequence(SEQUENCER_INITIAL_CURSOR_VALUE), sequencer_(&sequencer) {}
+    explicit SequencerFollowingSequence(RingBufferT& sequencer)
+        : Sequence(SEQUENCER_INITIAL_CURSOR_VALUE), sequencer_(&sequencer) {
+      static_assert(!std::is_reference_v<RingBufferT>, "RingBufferT must not be a reference type");
+    }
 
     int64_t get() const noexcept override { return sequencer_->getCursor(); }
 
   private:
-    RingBuffer<T>* sequencer_;
+    std::remove_reference_t<RingBufferT>* sequencer_;
   };
 
   SequencerFollowingSequence sequence_;

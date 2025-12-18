@@ -41,9 +41,10 @@ public:
 } // namespace
 
 TEST(DisruptorStressTest, shouldHandleLotsOfThreads_smoke) {
+  using WS = disruptor::BusySpinWaitStrategy;
   auto& tf = disruptor::util::DaemonThreadFactory::INSTANCE();
-  auto ws = std::make_unique<disruptor::BusySpinWaitStrategy>();
-  disruptor::dsl::Disruptor<TestEvent> d(TestEvent::FACTORY, 1 << 12, tf, disruptor::dsl::ProducerType::MULTI, std::move(ws));
+  WS ws;
+  disruptor::dsl::Disruptor<TestEvent, disruptor::dsl::ProducerType::MULTI, WS> d(TestEvent::FACTORY, 1 << 12, tf, ws);
 
   disruptor::FatalExceptionHandler<TestEvent> fatal;
   d.setDefaultExceptionHandler(fatal);
@@ -63,7 +64,7 @@ TEST(DisruptorStressTest, shouldHandleLotsOfThreads_smoke) {
   auto rb = d.start();
 
   struct Publisher {
-    std::shared_ptr<disruptor::RingBuffer<TestEvent>> rb;
+    decltype(rb) rb;
     int iterations;
     std::barrier<>* barrier;
     disruptor::test_support::CountDownLatch* done;

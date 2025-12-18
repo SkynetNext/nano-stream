@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "disruptor/BusySpinWaitStrategy.h"
 #include "disruptor/RingBuffer.h"
 #include "disruptor/Sequence.h"
 #include "disruptor/SequenceGroup.h"
@@ -92,8 +93,12 @@ TEST(SequenceGroupTest, shouldSetGroupSequenceToSameValue) {
 }
 
 TEST(SequenceGroupTest, shouldAddWhileRunning) {
-  auto ringBuffer = disruptor::RingBuffer<disruptor::support::TestEvent>::createSingleProducer(
-      disruptor::support::TestEvent::EVENT_FACTORY, 32);
+  using Event = disruptor::support::TestEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::SingleProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createSingleProducer(
+      disruptor::support::TestEvent::EVENT_FACTORY, 32, ws);
 
   disruptor::Sequence sequenceThree(3);
   disruptor::Sequence sequenceSeven(7);

@@ -42,8 +42,11 @@ private:
 } // namespace
 
 TEST(BatchEventProcessorTest, shouldCallMethodsInLifecycleOrderForBatch) {
-  auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16, ws);
   auto barrier = ringBuffer->newBarrier(nullptr, 0);
   disruptor::test_support::CountDownLatch latch(3);
   LatchEventHandler handler(latch);
@@ -62,8 +65,11 @@ TEST(BatchEventProcessorTest, shouldCallMethodsInLifecycleOrderForBatch) {
 }
 
 TEST(BatchEventProcessorTest, shouldCallExceptionHandlerOnUncaughtException) {
-  auto ringBuffer =
-      disruptor::RingBuffer<disruptor::support::StubEvent>::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16);
+  using Event = disruptor::support::StubEvent;
+  using WS = disruptor::BusySpinWaitStrategy;
+  using RB = disruptor::MultiProducerRingBuffer<Event, WS>;
+  WS ws;
+  auto ringBuffer = RB::createMultiProducer(disruptor::support::StubEvent::EVENT_FACTORY, 16, ws);
   auto barrier = ringBuffer->newBarrier(nullptr, 0);
   disruptor::test_support::CountDownLatch latch(1);
   ExceptionEventHandler handler;

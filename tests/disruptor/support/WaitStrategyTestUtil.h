@@ -1,8 +1,8 @@
 #pragma once
 // 1:1 port of com.lmax.disruptor.support.WaitStrategyTestUtil
+// Updated for template-based architecture: template on WaitStrategy type
 
 #include "disruptor/Sequence.h"
-#include "disruptor/WaitStrategy.h"
 
 #include "DummySequenceBarrier.h"
 #include "SequenceUpdater.h"
@@ -13,8 +13,9 @@
 namespace disruptor::support {
 
 struct WaitStrategyTestUtil {
-  static void assertWaitForWithDelayOf(int64_t sleepTimeMillis, ::disruptor::WaitStrategy& waitStrategy) {
-    SequenceUpdater sequenceUpdater(sleepTimeMillis, waitStrategy);
+  template <typename WaitStrategyT>
+  static void assertWaitForWithDelayOf(int64_t sleepTimeMillis, WaitStrategyT& waitStrategy) {
+    SequenceUpdater<WaitStrategyT> sequenceUpdater(sleepTimeMillis, waitStrategy);
     std::thread t([&] { sequenceUpdater.run(); });
 
     sequenceUpdater.waitForStartup();
