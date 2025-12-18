@@ -44,21 +44,14 @@ public:
   explicit Sequence(int64_t initial) noexcept : detail::RhsPadding(initial) {}
   virtual ~Sequence() = default;
 
-  // Java: long value = this.value; VarHandle.acquireFence(); return value;
-  // Java reads a plain field (not volatile), then executes acquireFence.
-  // This allows reading a "slightly stale" value, which may reduce memory barrier overhead.
-  // C++: Match Java semantics - relaxed load + acquire fence.
+  // C++ standard implementation: direct acquire load
   virtual int64_t get() const {
-    int64_t value = value_.load(std::memory_order_relaxed);
-    std::atomic_thread_fence(std::memory_order_acquire);
-    return value;
+    return value_.load(std::memory_order_acquire);
   }
-  // Java: VarHandle.releaseFence(); this.value = value;
-  // Java executes release fence first, then writes to plain field (not volatile).
-  // C++: Match Java semantics - release fence + relaxed store.
+  
+  // C++ standard implementation: direct release store
   virtual void set(int64_t v) {
-    std::atomic_thread_fence(std::memory_order_release);
-    value_.store(v, std::memory_order_relaxed);
+    value_.store(v, std::memory_order_release);
   }
 
   // Java: setVolatile - used as StoreLoad fence.
