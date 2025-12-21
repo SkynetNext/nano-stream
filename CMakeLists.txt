@@ -33,28 +33,7 @@ endif()
 
 # Create library with both headers and implementation
 add_library(nano-stream 
-    # Aeron utility implementations
-    src/aeron/util/memory_mapped_file.cpp
-    src/aeron/util/path_utils.cpp
-    src/aeron/logbuffer/log_buffer_descriptor.cpp
-    src/aeron/logbuffer/log_buffers.cpp
-    src/aeron/logbuffer/frame_descriptor.cpp
-    src/aeron/logbuffer/term_scanner.cpp
-    src/aeron/driver/log_buffer_manager.cpp
-    
-    # Aeron driver implementations
-    src/aeron/driver/conductor/conductor.cpp
-    src/aeron/driver/sender/sender.cpp
-    src/aeron/driver/receiver/receiver.cpp
-    src/aeron/driver/status/counters_manager.cpp
-    src/aeron/driver/media_driver.cpp
-    src/aeron/driver/publication/network_publication.cpp
-    src/aeron/driver/media/send_channel_endpoint.cpp
-    
-    # Aeron client implementations
-    src/aeron/client/aeron.cpp
-    src/aeron/client/publication.cpp
-    src/aeron/client/subscription.cpp
+    # TODO: Add Aeron client implementations after 1:1 translation from Java
 )
 
 target_include_directories(nano-stream 
