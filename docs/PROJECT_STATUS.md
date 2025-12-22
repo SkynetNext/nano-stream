@@ -2,14 +2,16 @@
 
 ## Current Status
 
-**Phase 1-2: Complete** ✅
+**Core Implementation: Complete** ✅
 - Core ring buffer implementation
 - Disruptor pattern support (single/multi-producer, wait strategies, consumers)
+- 1:1 C++ port of LMAX Disruptor (API + tests)
 
-**Phase 3: Planned**
-- Aeron-style inter-process communication
-- Shared memory IPC
-- Network transport layer
+**Future Enhancements (Planned)**
+- Additional wait strategies
+- NUMA-aware optimizations
+- Huge page support
+- SIMD optimizations
 
 ## Completed Features
 
@@ -40,13 +42,8 @@ See [Benchmark Results](BENCHMARK_RESULTS.md) for detailed metrics.
 
 ## Roadmap
 
-### Phase 3: Aeron Implementation
-- [ ] Shared memory IPC
-- [ ] UDP transport layer
-- [ ] Media driver architecture
-- [ ] Publication/subscription model
-
 ### Future Enhancements
+- [ ] Additional wait strategies
 - [ ] NUMA-aware allocation
 - [ ] Huge page support
 - [ ] SIMD optimizations

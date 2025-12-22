@@ -29,7 +29,7 @@ if(BUILD_TESTING)
 endif()
 
 # Create header-only library
-# TODO: Add Aeron client implementations after 1:1 translation from Java
+# 1:1 C++ port of LMAX Disruptor
 add_library(disruptor-cpp INTERFACE)
 
 target_include_directories(disruptor-cpp 

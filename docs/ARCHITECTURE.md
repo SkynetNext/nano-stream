@@ -1,12 +1,12 @@
 # Disruptor-CPP Architecture
 
-High-performance, low-latency C++ communication library inspired by LMAX Disruptor and Aeron.
+High-performance, low-latency C++ communication library featuring a **1:1 C++ port of LMAX Disruptor**. Design principles are inspired by both LMAX Disruptor and Aeron.
 
 ## Design Philosophy
 
-Disruptor-CPP combines the best ideas from:
-- **LMAX Disruptor**: Lock-free ring buffer patterns for inter-thread communication
-- **Aeron**: Zero-copy, high-performance messaging for inter-process communication
+Disruptor-CPP is a **1:1 C++ port of LMAX Disruptor**, implementing the same lock-free ring buffer patterns for inter-thread communication. Design principles are inspired by:
+- **LMAX Disruptor**: Lock-free ring buffer patterns (directly ported)
+- **Aeron**: Zero-copy, high-performance messaging design principles (design inspiration)
 
 ### Core Principles
 
@@ -24,20 +24,18 @@ Disruptor-CPP combines the best ideas from:
 │                    Disruptor-CPP                        │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│  ┌──────────────┐         ┌──────────────┐             │
-│  │  Disruptor   │         │    Aeron     │             │
-│  │   (Phase 2)  │         │  (Phase 3)   │             │
-│  │              │         │              │             │
-│  │ RingBuffer   │         │ Media Driver │             │
-│  │ Sequence     │         │ Publication  │             │
-│  │ Consumer     │         │ Subscription │             │
-│  │ WaitStrategy │         │ Log Buffers  │             │
-│  └──────────────┘         └──────────────┘             │
+│  ┌──────────────────────────────────────┐              │
+│  │         Disruptor (C++ Port)         │              │
+│  │                                      │              │
+│  │  RingBuffer  │  Sequence            │              │
+│  │  Consumer     │  WaitStrategy        │              │
+│  │  EventHandler │  EventTranslator     │              │
+│  └──────────────────────────────────────┘              │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Disruptor Architecture (Phase 1-2)
+## Disruptor Architecture
 
 ### Ring Buffer
 
@@ -109,45 +107,6 @@ if (ring_buffer.is_available(sequence)) {
 }
 ```
 
-## Aeron Architecture (Phase 3 - Planned)
-
-### Media Driver
-
-Independent process managing shared memory and network I/O:
-
-```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Client A   │    │   Client B   │    │   Client C   │
-│ (Publisher)  │    │(Subscriber)  │    │(Subscriber)  │
-└──────┬───────┘    └──────┬───────┘    └──────┬───────┘
-       │                   │                   │
-       └───────────────────┼───────────────────┘
-                           │
-                  ┌─────────┴─────────┐
-                  │   Media Driver    │
-                  │  (Shared Memory)  │
-                  └───────────────────┘
-```
-
-### Log Buffers
-
-Three-term rotating buffer for zero-copy messaging:
-
-```
-┌─────────────────────────────────────┐
-│         Log Buffer                  │
-├─────────────────────────────────────┤
-│  Term 0  │  Term 1  │  Term 2  │ M │
-│  (Active)│  (Next)  │  (Clean)  │ e │
-│          │          │           │ t │
-└─────────────────────────────────────┘
-```
-
-### Publication/Subscription
-
-- **Publication**: Write path for publishers
-- **Subscription**: Read path for subscribers
-- **Image**: Per-subscriber view of a publication
 
 ## Memory Layout
 
@@ -270,9 +229,8 @@ Events are reused, only their content is updated. No copying during operation.
 
 ## Future Enhancements
 
-- **Shared Memory IPC**: Aeron-style inter-process communication
-- **Network Transport**: UDP unicast and multicast
 - **NUMA Awareness**: Optimize for multi-socket systems
 - **Huge Pages**: Reduce TLB misses
 - **SIMD Optimizations**: Vectorized operations
+- **Additional Wait Strategies**: More backpressure handling options
 

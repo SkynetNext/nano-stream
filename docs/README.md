@@ -1,6 +1,6 @@
 # Disruptor-CPP Documentation
 
-High-performance, low-latency C++ communication library inspired by LMAX Disruptor and Aeron.
+High-performance, low-latency C++ communication library featuring a **1:1 C++ port of LMAX Disruptor**.
 
 ## Core Documentation
 
@@ -15,9 +15,7 @@ High-performance, low-latency C++ communication library inspired by LMAX Disrupt
 
 ## Design Philosophy
 
-Disruptor-CPP combines the best ideas from:
-- **LMAX Disruptor**: Lock-free ring buffer patterns
-- **Aeron**: Zero-copy, high-performance messaging
+Disruptor-CPP is a **1:1 C++ port of LMAX Disruptor**, implementing the same lock-free ring buffer patterns. Design principles are inspired by both LMAX Disruptor and Aeron.
 
 Key principles:
 - Zero allocation during operation
