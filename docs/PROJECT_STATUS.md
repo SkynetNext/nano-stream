@@ -31,11 +31,12 @@
 
 See [Benchmark Results](BENCHMARK_RESULTS.md) for detailed metrics.
 
-**Key Highlights:**
-- Sub-nanosecond latency (0.26-4.2ns)
-- 326M ops/sec single-threaded throughput
-- 665M items/sec batch processing
-- 17-21M items/sec producer-consumer
+**Key Highlights (End-to-End Tests):**
+- **SPSC End-to-End**: 127 Mops/sec (C++), 111 Mops/sec (Java) - ~7.9ns/op (C++), ~9.0ns/op (Java)
+- **MP1C (4 threads)**: 40.7 Mops/sec (C++), 36.2 Mops/sec (Java)
+- **MP1C Batch (4 threads)**: 208.9 Mops/sec (C++), 208.7 Mops/sec (Java)
+
+*Note: End-to-end tests are more representative of real-world performance than micro-benchmarks.*
 
 ## Roadmap
 

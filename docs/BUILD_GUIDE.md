@@ -227,7 +227,10 @@ ctest -R "sequence"  # Only sequence tests
 ctest -R "ring"      # Only ring buffer tests
 ```
 
-Expected benchmark results (varies by hardware):
-- Sequence operations: < 1ns
-- Ring buffer operations: < 5ns
-- Producer-consumer throughput: > 50M events/sec
+Expected benchmark results (varies by hardware, from actual test data):
+- **SPSC End-to-End**: ~127 Mops/sec (C++), ~111 Mops/sec (Java) - most representative of real-world usage
+- **SPSC Micro-benchmark**: ~462.7 Mops/sec (C++), ~130.3 Mops/sec (Java) - theoretical maximum
+- **MP1C (4 threads)**: ~40.7 Mops/sec (C++), ~36.2 Mops/sec (Java)
+- **BlockingQueue baseline**: ~11.3 Mops/sec (C++), ~9.4 Mops/sec (Java)
+
+See [Benchmark Results](../docs/BENCHMARK_RESULTS.md) for detailed metrics.

@@ -23,4 +23,5 @@ Key principles:
 - Zero allocation during operation
 - Cache-line optimized memory layout
 - Lock-free algorithms
-- Sub-nanosecond latency operations
+- Low latency: ~7.9ns/op (SPSC end-to-end, C++), ~9.0ns/op (Java)
+- High throughput: 127 Mops/sec (SPSC end-to-end, C++), 111 Mops/sec (Java)

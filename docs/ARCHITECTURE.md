@@ -80,7 +80,8 @@ class alignas(std::hardware_destructive_interference_size) Sequence {
 
 #### Multi Producer
 - Atomic CAS operations
-- ~300M ops/sec throughput
+- **MP1C (4 threads)**: 40.7 Mops/sec (C++), 36.2 Mops/sec (Java)
+- **MP1C Batch (4 threads)**: 208.9 Mops/sec (C++), 208.7 Mops/sec (Java)
 - Thread-safe for concurrent producers
 
 ### Wait Strategies
@@ -217,7 +218,7 @@ Events are reused, only their content is updated. No copying during operation.
 ## Use Cases
 
 ### High-Frequency Trading
-- Sub-nanosecond latency requirements
+- Low latency requirements (~7.9ns/op end-to-end, C++)
 - Predictable performance
 - Zero GC pauses
 
