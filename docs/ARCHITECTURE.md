@@ -13,7 +13,7 @@ Disruptor-CPP combines the best ideas from:
 - **Zero Allocation**: Pre-allocated buffers eliminate runtime memory allocation
 - **Cache-Line Optimized**: Proper memory alignment prevents false sharing
 - **Lock-Free Algorithms**: Atomic operations for maximum performance
-- **Sub-Nanosecond Latency**: Optimized for time-critical applications
+- **Low Latency**: Optimized for time-critical applications (~2.2ns SPSC micro-benchmark)
 
 ## System Architecture
 
@@ -75,8 +75,8 @@ class alignas(std::hardware_destructive_interference_size) Sequence {
 
 #### Single Producer
 - Direct assignment (no atomic operations)
-- ~400M ops/sec throughput
-- Lowest latency (~1ns per operation)
+- **End-to-end**: 127 Mops/sec (~7.9ns/op) - representative of real-world usage
+- **Micro-benchmark**: 462.7 Mops/sec (~2.2ns/op) - theoretical maximum
 
 #### Multi Producer
 - Atomic CAS operations
@@ -174,17 +174,21 @@ Each `Sequence` instance is aligned to cache-line boundaries:
 
 ## Performance Characteristics
 
-### Latency
+*Note: End-to-end tests (OneToOneSequencedThroughputTest) are more representative of real-world performance than micro-benchmarks, as they include full system overhead (thread scheduling, wait strategies, batch processing, synchronization).*
 
-- **Sequence operations**: 0.26-0.51 ns
-- **Ring buffer operations**: 3.7-4.2 ns
-- **Producer-consumer**: 17-21M items/sec
+### End-to-End Performance (Production-like)
 
-### Throughput
+- **SPSC End-to-End**: 
+  - C++: 127 Mops/sec (~7.9ns/op)
+  - Java: 111 Mops/sec (~9.0ns/op)
+  - **C++ is 1.14x faster** - minimal difference in practical scenarios
 
-- **Single-threaded**: 326M ops/sec
-- **Batch processing**: 665M items/sec (64-item batches)
-- **Memory access**: 1.4B ops/sec (sequential)
+### Micro-Benchmark Performance
+
+- **SPSC micro-benchmark**: 2.161 ns/op (C++), 7.674 ns/op (Java) → 462.7 Mops/sec (C++), 130.3 Mops/sec (Java)
+- **MP1C (4 threads)**: 40.7 Mops/sec (C++), 36.2 Mops/sec (Java)
+- **MP1C Batch (4 threads)**: 208.9 Mops/sec (C++), 208.7 Mops/sec (Java)
+- **BlockingQueue baseline**: 88.56 ns/op (C++), 105.88 ns/op (Java) → 11.3 Mops/sec (C++), 9.4 Mops/sec (Java)
 
 ### Scalability
 
@@ -229,10 +233,13 @@ Events are reused, only their content is updated. No copying during operation.
 
 ## Comparison with Alternatives
 
+*Note: Performance metrics are based on end-to-end tests (OneToOneSequencedThroughputTest), which better reflect real-world usage than micro-benchmarks.*
+
 | Feature | Disruptor-CPP | std::queue + mutex | LMAX Disruptor |
 |---------|-------------|-------------------|----------------|
 | Language | C++ | C++ | Java |
-| Latency | ~1ns | ~100ns | ~3ns |
+| Latency (SPSC End-to-End) | ~7.9ns | ~88ns | ~9.0ns |
+| Throughput (SPSC End-to-End) | 127 Mops/sec | 11.3 Mops/sec | 111 Mops/sec |
 | Allocation | Zero | Per-op | Zero |
 | Lock-free | ✅ | ❌ | ✅ |
 | Cache Optimized | ✅ | ❌ | ✅ |
