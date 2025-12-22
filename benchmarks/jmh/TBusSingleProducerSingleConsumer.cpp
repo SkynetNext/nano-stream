@@ -66,7 +66,7 @@ static void JMH_TBusSingleProducerSingleConsumer_producing(benchmark::State& sta
 static auto* bm_JMH_TBusSingleProducerSingleConsumer_producing = [] {
   auto* b = benchmark::RegisterBenchmark("JMH_TBusSingleProducerSingleConsumer_producing",
                                          &JMH_TBusSingleProducerSingleConsumer_producing);
-  return nano_stream::bench::jmh::applyJmhDefaults(b);
+  return disruptor::bench::jmh::applyJmhDefaults(b);
 }();
 
 

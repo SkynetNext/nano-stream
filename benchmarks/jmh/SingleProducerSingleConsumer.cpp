@@ -24,10 +24,10 @@ JMH_SingleProducerSingleConsumer_producing(benchmark::State &state) {
 
   disruptor::BusySpinWaitStrategy ws;
   auto factory =
-      std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
+      std::make_shared<disruptor::bench::jmh::SimpleEventFactory>();
 
   auto rb = disruptor::SingleProducerRingBuffer<
-      nano_stream::bench::jmh::SimpleEvent,
+      disruptor::bench::jmh::SimpleEvent,
       disruptor::BusySpinWaitStrategy>::createSingleProducer(
       factory, kRingBufferSize, ws);
 
@@ -73,5 +73,5 @@ static auto *bm_JMH_SingleProducerSingleConsumer_producing = [] {
   auto *b =
       benchmark::RegisterBenchmark("JMH_SingleProducerSingleConsumer_producing",
                                    &JMH_SingleProducerSingleConsumer_producing);
-  return nano_stream::bench::jmh::applyJmhDefaults(b);
+  return disruptor::bench::jmh::applyJmhDefaults(b);
 }();

@@ -4,7 +4,7 @@ set(DISRUPTOR_EXAMPLES_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/disruptor_examples)
 
 function(add_disruptor_example target source)
   add_executable(${target} ${source})
-  target_link_libraries(${target} PRIVATE nano-stream)
+  target_link_libraries(${target} PRIVATE disruptor-cpp)
   target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/include ${DISRUPTOR_EXAMPLES_ROOT})
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(${target} PRIVATE -Wno-unused-parameter)

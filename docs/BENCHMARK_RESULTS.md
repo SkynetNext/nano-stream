@@ -25,14 +25,14 @@
 ### C++ (Google Benchmark)
 
 ```powershell
-cd F:\nano-stream\build
+cd F:\disruptor-cpp\build
 .\benchmarks\nano_stream_benchmarks.exe --benchmark_filter='^JMH_' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true --benchmark_out=..\benchmark_cpp.json --benchmark_out_format=json
 ```
 
 ### Java (JMH, via jmhJar)
 
 ```bash
-cd /f/nano-stream/reference/disruptor
+cd /f/disruptor-cpp/reference/disruptor
 ./gradlew jmhJar --no-daemon
 java -jar build/libs/*-jmh.jar -rf json -rff ../../benchmark_java.json -foe true -v NORMAL -f 1 -wi 2 -w 5s -i 3 -r 5s ".*(SingleProducerSingleConsumer|MultiProducerSingleConsumer|BlockingQueueBenchmark).*"
 ```

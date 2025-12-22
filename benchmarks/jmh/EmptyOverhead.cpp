@@ -15,7 +15,7 @@ static void JMH_EmptyLoop_DoNotOptimize(benchmark::State& state) {
 
 static auto* bm_JMH_EmptyLoop_DoNotOptimize = [] {
   auto* b = benchmark::RegisterBenchmark("JMH_EmptyLoop_DoNotOptimize", &JMH_EmptyLoop_DoNotOptimize);
-  return nano_stream::bench::jmh::applyJmhDefaults(b);
+  return disruptor::bench::jmh::applyJmhDefaults(b);
 }();
 
 

@@ -9,6 +9,36 @@ if(EXISTS ${BENCHMARK_ROOT}/CMakeLists.txt)
     set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
     
     add_subdirectory(${BENCHMARK_ROOT} ${CMAKE_BINARY_DIR}/benchmark-build EXCLUDE_FROM_ALL)
+    
+    # Suppress format-nonliteral warning for Google Benchmark (known issue in older versions)
+    # This warning occurs in third_party/benchmark/src/string_util.cc
+    # Google Benchmark's CMakeLists.txt sets -Wformat=2 and -Werror.
+    # We need to add -Wno-format-nonliteral AFTER all other options so it takes precedence.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        if(TARGET benchmark)
+            # Get current compile options
+            get_target_property(_benchmark_compile_options benchmark COMPILE_OPTIONS)
+            # Add -Wno-format-nonliteral at the end to override -Wformat=2
+            if(_benchmark_compile_options)
+                list(APPEND _benchmark_compile_options "-Wno-format-nonliteral")
+            else()
+                set(_benchmark_compile_options "-Wno-format-nonliteral")
+            endif()
+            set_target_properties(benchmark PROPERTIES COMPILE_OPTIONS "${_benchmark_compile_options}")
+            unset(_benchmark_compile_options)
+        endif()
+        
+        if(TARGET benchmark_main)
+            get_target_property(_benchmark_main_compile_options benchmark_main COMPILE_OPTIONS)
+            if(_benchmark_main_compile_options)
+                list(APPEND _benchmark_main_compile_options "-Wno-format-nonliteral")
+            else()
+                set(_benchmark_main_compile_options "-Wno-format-nonliteral")
+            endif()
+            set_target_properties(benchmark_main PROPERTIES COMPILE_OPTIONS "${_benchmark_main_compile_options}")
+            unset(_benchmark_main_compile_options)
+        endif()
+    endif()
 else()
     message(FATAL_ERROR "Google Benchmark submodule not found. Please run: git submodule update --init --recursive")
 endif()
@@ -30,7 +60,7 @@ add_executable(nano_stream_benchmarks
 
 target_link_libraries(nano_stream_benchmarks
     PRIVATE
-        nano-stream
+        disruptor-cpp
         benchmark::benchmark
 )
 

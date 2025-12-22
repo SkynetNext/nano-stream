@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-namespace nano_stream::bench::jmh {
+namespace disruptor::bench::jmh {
 
 // Java: reference/disruptor/src/jmh/java/com/lmax/disruptor/util/SimpleEvent.java
 struct SimpleEvent {
@@ -32,6 +32,6 @@ struct SetZeroTranslator final : public disruptor::EventTranslator<SimpleEvent> 
   void translateTo(SimpleEvent& event, int64_t /*sequence*/) override { event.value = 0; }
 };
 
-} // namespace nano_stream::bench::jmh
+} // namespace disruptor::bench::jmh
 
 

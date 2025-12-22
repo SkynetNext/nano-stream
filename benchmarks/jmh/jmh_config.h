@@ -11,7 +11,7 @@
 
 #include <chrono>
 
-namespace nano_stream::bench::jmh {
+namespace disruptor::bench::jmh {
 
 inline benchmark::internal::Benchmark* applyJmhDefaults(benchmark::internal::Benchmark* b) {
   // Keep the benchmark registration free of timing/repetition policy so that:
@@ -20,6 +20,6 @@ inline benchmark::internal::Benchmark* applyJmhDefaults(benchmark::internal::Ben
   return b->ReportAggregatesOnly(true);
 }
 
-} // namespace nano_stream::bench::jmh
+} // namespace disruptor::bench::jmh
 
 

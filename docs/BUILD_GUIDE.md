@@ -1,8 +1,8 @@
-# Nano-Stream Build Guide
+# Disruptor-CPP Build Guide
 
 ## Prerequisites
 
-Before building Nano-Stream, ensure you have the following installed:
+Before building Disruptor-CPP, ensure you have the following installed:
 
 ### Windows
 1. **Visual Studio 2019 or later** with C++ support
@@ -35,7 +35,7 @@ xcode-select --install
 ### Step 1: Clone and Navigate
 ```bash
 git clone <repository-url>
-cd nano-stream
+cd disruptor-cpp
 ```
 
 ### Step 2: Create Build Directory
@@ -177,14 +177,14 @@ sudo mount -t hugetlbfs nodev /mnt/huge
 
 #### CMake Integration
 ```cmake
-find_package(nano-stream REQUIRED)
-target_link_libraries(your_target nano-stream::nano-stream)
+find_package(disruptor-cpp REQUIRED)
+target_link_libraries(your_target disruptor-cpp::disruptor-cpp)
 ```
 
 #### Manual Integration
 ```cmake
-add_subdirectory(path/to/nano-stream)
-target_link_libraries(your_target nano-stream)
+add_subdirectory(path/to/disruptor-cpp)
+target_link_libraries(your_target disruptor-cpp)
 ```
 
 ## Advanced Configuration

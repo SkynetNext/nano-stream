@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace nano_stream::bench::perftest {
+namespace disruptor::bench::perftest {
 
 class PerfTestContext {
 public:
@@ -40,5 +40,5 @@ private:
   int64_t iterations_;
 };
 
-} // namespace nano_stream::bench::perftest
+} // namespace disruptor::bench::perftest
 

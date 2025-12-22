@@ -29,7 +29,7 @@ if(DISRUPTOR_PORTED_TEST_SOURCES)
 
     target_link_libraries(nano_stream_tests
         PRIVATE
-            nano-stream
+            disruptor-cpp
             gtest
             gtest_main
     )

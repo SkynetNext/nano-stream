@@ -1,9 +1,9 @@
 #!/bin/bash
-# Performance comparison script for Nano-Stream (C++) vs Disruptor (Java)
+# Performance comparison script for Disruptor-CPP (C++) vs Disruptor (Java)
 
 set -e
 
-echo "# Performance Comparison: Nano-Stream (C++) vs Disruptor (Java)"
+echo "# Performance Comparison: Disruptor-CPP (C++) vs Disruptor (Java)"
 echo ""
 echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 echo ""
@@ -178,7 +178,7 @@ if [ -f "$CPP_FILE" ] && [ -f "$JAVA_FILE" ] && [ "$HAVE_JQ" -eq 1 ]; then
   # Extract key metrics for comparison
   echo "### Key Performance Metrics"
   echo ""
-  echo "| Operation | C++ (Nano-Stream) | Java (Disruptor) | C++/Java Ratio | Winner |"
+  echo "| Operation | C++ (Disruptor-CPP) | Java (Disruptor) | C++/Java Ratio | Winner |"
   echo "|-----------|-------------------|------------------|----------------|--------|"
 
   # Typical production scenarios (aligned):
@@ -371,7 +371,7 @@ def winner(r):
 
 print("## Performance Analysis & Comparison\n")
 print("### Key Performance Metrics\n")
-print("| Operation | C++ (Nano-Stream) | Java (Disruptor) | C++/Java Ratio | Winner |")
+print("| Operation | C++ (Disruptor-CPP) | Java (Disruptor) | C++/Java Ratio | Winner |")
 print("|-----------|-------------------|------------------|----------------|--------|")
 
 java_spsc = find_java("SingleProducerSingleConsumer.producing")

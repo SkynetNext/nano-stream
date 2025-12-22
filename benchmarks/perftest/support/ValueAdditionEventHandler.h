@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace nano_stream::bench::perftest::support {
+namespace disruptor::bench::perftest::support {
 
 class ValueAdditionEventHandler : public disruptor::EventHandler<ValueEvent> {
 public:
@@ -55,5 +55,5 @@ private:
   std::shared_ptr<std::atomic<bool>> latch_;
 };
 
-} // namespace nano_stream::bench::perftest::support
+} // namespace disruptor::bench::perftest::support
 

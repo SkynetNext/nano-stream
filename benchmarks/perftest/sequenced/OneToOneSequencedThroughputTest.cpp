@@ -56,15 +56,15 @@ constexpr int kRuns = 7; // Match Java's AbstractPerfTestDisruptor.RUNS = 7
 class OneToOneSequencedThroughputTest {
 public:
   // Type aliases for convenience
-  using PerfTestContext = nano_stream::bench::perftest::PerfTestContext;
-  using ValueEvent = nano_stream::bench::perftest::support::ValueEvent;
-  using ValueAdditionEventHandler = nano_stream::bench::perftest::support::ValueAdditionEventHandler;
+  using PerfTestContext = disruptor::bench::perftest::PerfTestContext;
+  using ValueEvent = disruptor::bench::perftest::support::ValueEvent;
+  using ValueAdditionEventHandler = disruptor::bench::perftest::support::ValueAdditionEventHandler;
   using RingBufferType = disruptor::RingBuffer<ValueEvent, disruptor::SingleProducerSequencer<disruptor::YieldingWaitStrategy>>;
   using BarrierType = disruptor::ProcessingSequenceBarrier<disruptor::SingleProducerSequencer<disruptor::YieldingWaitStrategy>, disruptor::YieldingWaitStrategy>;
   using BatchProcessorType = disruptor::BatchEventProcessor<ValueEvent, BarrierType>;
   
   OneToOneSequencedThroughputTest()
-      : expectedResult_(nano_stream::bench::perftest::support::accumulatedAddition(kIterations)),
+      : expectedResult_(disruptor::bench::perftest::support::accumulatedAddition(kIterations)),
         ws_(),
         ringBuffer_(disruptor::SingleProducerRingBuffer<
                     ValueEvent, disruptor::YieldingWaitStrategy>::createSingleProducer(
@@ -81,8 +81,8 @@ public:
   int getRequiredProcessorCount() const { return 2; }
 
   PerfTestContext runDisruptorPass() {
-    using namespace nano_stream::bench::perftest;
-    using namespace nano_stream::bench::perftest::support;
+    using namespace disruptor::bench::perftest;
+    using namespace disruptor::bench::perftest::support;
 
     PerfTestContext perfTestContext;
     
@@ -182,8 +182,8 @@ public:
   }
 
   void testImplementations() {
-    using namespace nano_stream::bench::perftest;
-    using namespace nano_stream::bench::perftest::support;
+    using namespace disruptor::bench::perftest;
+    using namespace disruptor::bench::perftest::support;
 
     const int availableProcessors = std::thread::hardware_concurrency();
     if (getRequiredProcessorCount() > availableProcessors) {
@@ -229,8 +229,8 @@ private:
 // Implementation: Each Google Benchmark iteration = one Java run (7 iterations total)
 // We use a static test instance to match Java's structure (one instance, reused across runs)
 void PerfTest_OneToOneSequencedThroughputTest(benchmark::State& state) {
-  using namespace nano_stream::bench::perftest;
-  using namespace nano_stream::bench::perftest::support;
+  using namespace disruptor::bench::perftest;
+  using namespace disruptor::bench::perftest::support;
   
   // Create test instance once (like Java's main() creates test instance)
   // The instance is reused across all 7 runs, matching Java's structure

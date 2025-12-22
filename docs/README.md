@@ -1,4 +1,4 @@
-# Nano-Stream Documentation
+# Disruptor-CPP Documentation
 
 High-performance, low-latency C++ communication library inspired by LMAX Disruptor and Aeron.
 
@@ -15,7 +15,7 @@ High-performance, low-latency C++ communication library inspired by LMAX Disrupt
 
 ## Design Philosophy
 
-Nano-Stream combines the best ideas from:
+Disruptor-CPP combines the best ideas from:
 - **LMAX Disruptor**: Lock-free ring buffer patterns
 - **Aeron**: Zero-copy, high-performance messaging
 

@@ -21,10 +21,10 @@ constexpr int kBatchSize = 100;
 constexpr int kMpThreads = 4;
 
 // Static Disruptor instance (matches Java @State(Scope.Benchmark) - shared across threads)
-using DisruptorType = disruptor::dsl::Disruptor<nano_stream::bench::jmh::SimpleEvent,
+using DisruptorType = disruptor::dsl::Disruptor<disruptor::bench::jmh::SimpleEvent,
                                                 disruptor::dsl::ProducerType::MULTI,
                                                 disruptor::BusySpinWaitStrategy>;
-using RingBufferType = disruptor::RingBuffer<nano_stream::bench::jmh::SimpleEvent,
+using RingBufferType = disruptor::RingBuffer<disruptor::bench::jmh::SimpleEvent,
                                               disruptor::MultiProducerSequencer<disruptor::BusySpinWaitStrategy>>;
 
 // Static instance shared across all threads (Java: @State(Scope.Benchmark))
@@ -32,7 +32,7 @@ static std::mutex g_init_mutex;
 static DisruptorType* g_disruptor = nullptr;
 static std::shared_ptr<RingBufferType> g_ringBuffer = nullptr;
 static std::atomic<bool> g_initialized{false};
-static nano_stream::bench::jmh::ConsumeHandler* g_handler = nullptr; // Keep handler alive
+static disruptor::bench::jmh::ConsumeHandler* g_handler = nullptr; // Keep handler alive
 
 } // namespace
 
@@ -45,7 +45,7 @@ static void Setup_MPSC_producing(const benchmark::State& state) {
   if (!g_initialized.load(std::memory_order_relaxed)) {
     try {
       disruptor::BusySpinWaitStrategy ws;
-      auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
+      auto factory = std::make_shared<disruptor::bench::jmh::SimpleEventFactory>();
       auto& threadFactory = disruptor::util::DaemonThreadFactory::INSTANCE();
 
       // Create Disruptor (matches Java @Setup)
@@ -53,7 +53,7 @@ static void Setup_MPSC_producing(const benchmark::State& state) {
 
       // Add consumer handler (1:1 with Java: disruptor.handleEventsWith(new SimpleEventHandler(bh)))
       // Handler must live for the entire Disruptor lifetime, so store it statically
-      g_handler = new nano_stream::bench::jmh::ConsumeHandler();
+      g_handler = new disruptor::bench::jmh::ConsumeHandler();
       g_disruptor->handleEventsWith(*g_handler);
 
       // Start consumer thread (1:1 with Java: ringBuffer = disruptor.start())
@@ -135,7 +135,7 @@ static auto* bm_JMH_MultiProducerSingleConsumer_producing = [] {
   b->Threads(kMpThreads);
   b->Setup(Setup_MPSC_producing);  // 1:1 with Java @Setup
   b->Teardown(Teardown_MPSC_producing);  // 1:1 with Java @TearDown
-  return nano_stream::bench::jmh::applyJmhDefaults(b);
+  return disruptor::bench::jmh::applyJmhDefaults(b);
 }();
 
 // Separate static instances for batch benchmark (Java uses same @State(Scope.Benchmark) instance)
@@ -143,7 +143,7 @@ static std::mutex g_batch_init_mutex;
 static DisruptorType* g_batch_disruptor = nullptr;
 static std::shared_ptr<RingBufferType> g_batch_ringBuffer = nullptr;
 static std::atomic<bool> g_batch_initialized{false};
-static nano_stream::bench::jmh::ConsumeHandler* g_batch_handler = nullptr; // Keep handler alive
+static disruptor::bench::jmh::ConsumeHandler* g_batch_handler = nullptr; // Keep handler alive
 
 // Setup function for batch (1:1 with Java @Setup)
 static void Setup_MPSC_producingBatch(const benchmark::State& state) {
@@ -153,7 +153,7 @@ static void Setup_MPSC_producingBatch(const benchmark::State& state) {
   if (!g_batch_initialized.load(std::memory_order_relaxed)) {
     try {
       disruptor::BusySpinWaitStrategy ws;
-      auto factory = std::make_shared<nano_stream::bench::jmh::SimpleEventFactory>();
+      auto factory = std::make_shared<disruptor::bench::jmh::SimpleEventFactory>();
       auto& threadFactory = disruptor::util::DaemonThreadFactory::INSTANCE();
 
       // Create Disruptor (matches Java @Setup)
@@ -161,7 +161,7 @@ static void Setup_MPSC_producingBatch(const benchmark::State& state) {
 
       // Add consumer handler (1:1 with Java: disruptor.handleEventsWith(new SimpleEventHandler(bh)))
       // Handler must live for the entire Disruptor lifetime, so store it statically
-      g_batch_handler = new nano_stream::bench::jmh::ConsumeHandler();
+      g_batch_handler = new disruptor::bench::jmh::ConsumeHandler();
       g_batch_disruptor->handleEventsWith(*g_batch_handler);
 
       // Start consumer thread (1:1 with Java: ringBuffer = disruptor.start())
@@ -241,7 +241,7 @@ static auto* bm_JMH_MultiProducerSingleConsumer_producingBatch = [] {
   b->Threads(kMpThreads);
   b->Setup(Setup_MPSC_producingBatch);  // 1:1 with Java @Setup
   b->Teardown(Teardown_MPSC_producingBatch);  // 1:1 with Java @TearDown
-  return nano_stream::bench::jmh::applyJmhDefaults(b);
+  return disruptor::bench::jmh::applyJmhDefaults(b);
 }();
 
 

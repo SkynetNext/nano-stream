@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(nano-stream VERSION 1.0.0 LANGUAGES CXX)
+project(disruptor-cpp VERSION 1.0.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -30,27 +30,27 @@ endif()
 
 # Create header-only library
 # TODO: Add Aeron client implementations after 1:1 translation from Java
-add_library(nano-stream INTERFACE)
+add_library(disruptor-cpp INTERFACE)
 
-target_include_directories(nano-stream 
+target_include_directories(disruptor-cpp 
     INTERFACE 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(nano-stream 
+target_link_libraries(disruptor-cpp 
     INTERFACE 
         Threads::Threads
 )
 
 # Set target properties
-target_compile_features(nano-stream INTERFACE cxx_std_20)
+target_compile_features(disruptor-cpp INTERFACE cxx_std_20)
 
 # Suppress unused parameter warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(nano-stream INTERFACE -Wno-unused-parameter)
+    target_compile_options(disruptor-cpp INTERFACE -Wno-unused-parameter)
 elseif(MSVC)
-    target_compile_options(nano-stream INTERFACE /wd4100)
+    target_compile_options(disruptor-cpp INTERFACE /wd4100)
 endif()
 
 # Add subdirectories conditionally
@@ -67,8 +67,8 @@ if(BUILD_EXAMPLES)
 endif()
 
 # Install targets
-install(TARGETS nano-stream
-    EXPORT nano-stream-targets
+install(TARGETS disruptor-cpp
+    EXPORT disruptor-cpp-targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
@@ -77,28 +77,28 @@ install(TARGETS nano-stream
 
 install(DIRECTORY include/ DESTINATION include)
 
-install(EXPORT nano-stream-targets
-    FILE nano-stream-targets.cmake
-    NAMESPACE nano-stream::
-    DESTINATION lib/cmake/nano-stream
+install(EXPORT disruptor-cpp-targets
+    FILE disruptor-cpp-targets.cmake
+    NAMESPACE disruptor-cpp::
+    DESTINATION lib/cmake/disruptor-cpp
 )
 
 # Configure package
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/nano-stream-config-version.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/disruptor-cpp-config-version.cmake"
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
 configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/nano-stream-config.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/nano-stream-config.cmake"
-    INSTALL_DESTINATION lib/cmake/nano-stream
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/disruptor-cpp-config.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/disruptor-cpp-config.cmake"
+    INSTALL_DESTINATION lib/cmake/disruptor-cpp
 )
 
 install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/nano-stream-config.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/nano-stream-config-version.cmake"
-    DESTINATION lib/cmake/nano-stream
+    "${CMAKE_CURRENT_BINARY_DIR}/disruptor-cpp-config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/disruptor-cpp-config-version.cmake"
+    DESTINATION lib/cmake/disruptor-cpp
 )

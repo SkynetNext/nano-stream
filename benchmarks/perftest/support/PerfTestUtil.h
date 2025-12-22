@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-namespace nano_stream::bench::perftest::support {
+namespace disruptor::bench::perftest::support {
 
 inline int64_t accumulatedAddition(int64_t iterations) {
   int64_t temp = 0;
@@ -27,5 +27,5 @@ inline void failIfNot(int64_t a, int64_t b) {
   }
 }
 
-} // namespace nano_stream::bench::perftest::support
+} // namespace disruptor::bench::perftest::support
 

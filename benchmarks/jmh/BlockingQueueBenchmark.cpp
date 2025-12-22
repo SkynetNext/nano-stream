@@ -27,7 +27,7 @@ public:
   explicit ArrayBlockingQueueLike(size_t capacity)
       : capacity_(capacity), buf_(capacity_, nullptr) {}
 
-  bool offer(nano_stream::bench::jmh::SimpleEvent* e, std::chrono::nanoseconds timeout) {
+  bool offer(disruptor::bench::jmh::SimpleEvent* e, std::chrono::nanoseconds timeout) {
     std::unique_lock<std::mutex> lk(mu_);
 
     // Fast path: do not call into condition_variable if we are not full.
@@ -49,7 +49,7 @@ public:
     return true;
   }
 
-  nano_stream::bench::jmh::SimpleEvent* poll() {
+  disruptor::bench::jmh::SimpleEvent* poll() {
     std::lock_guard<std::mutex> lk(mu_);
     if (count_ == 0) return nullptr;
     const bool was_full = (count_ == capacity_);
@@ -78,7 +78,7 @@ private:
   std::condition_variable cv_not_empty_;
   std::condition_variable cv_not_full_;
   size_t capacity_{0};
-  std::vector<nano_stream::bench::jmh::SimpleEvent*> buf_;
+  std::vector<disruptor::bench::jmh::SimpleEvent*> buf_;
   size_t head_{0};
   size_t tail_{0};
   size_t count_{0};
@@ -106,7 +106,7 @@ static void JMH_BlockingQueueBenchmark_producing(benchmark::State& state) {
   started_f.wait();
 
   // Java reuses the same SimpleEvent instance for all offers.
-  nano_stream::bench::jmh::SimpleEvent e{};
+  disruptor::bench::jmh::SimpleEvent e{};
   e.value = 0;
 
   for (auto _ : state) {
@@ -124,7 +124,7 @@ static void JMH_BlockingQueueBenchmark_producing(benchmark::State& state) {
 static auto* bm_JMH_BlockingQueueBenchmark_producing = [] {
   auto* b = benchmark::RegisterBenchmark("JMH_BlockingQueueBenchmark_producing",
                                          &JMH_BlockingQueueBenchmark_producing);
-  return nano_stream::bench::jmh::applyJmhDefaults(b);
+  return disruptor::bench::jmh::applyJmhDefaults(b);
 }();
 
 

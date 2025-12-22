@@ -1,10 +1,10 @@
-# Nano-Stream Architecture
+# Disruptor-CPP Architecture
 
 High-performance, low-latency C++ communication library inspired by LMAX Disruptor and Aeron.
 
 ## Design Philosophy
 
-Nano-Stream combines the best ideas from:
+Disruptor-CPP combines the best ideas from:
 - **LMAX Disruptor**: Lock-free ring buffer patterns for inter-thread communication
 - **Aeron**: Zero-copy, high-performance messaging for inter-process communication
 
@@ -21,7 +21,7 @@ Nano-Stream combines the best ideas from:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Nano-Stream                          │
+│                    Disruptor-CPP                        │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  ┌──────────────┐         ┌──────────────┐             │
@@ -229,7 +229,7 @@ Events are reused, only their content is updated. No copying during operation.
 
 ## Comparison with Alternatives
 
-| Feature | Nano-Stream | std::queue + mutex | LMAX Disruptor |
+| Feature | Disruptor-CPP | std::queue + mutex | LMAX Disruptor |
 |---------|-------------|-------------------|----------------|
 | Language | C++ | C++ | Java |
 | Latency | ~1ns | ~100ns | ~3ns |

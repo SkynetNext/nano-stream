@@ -4,7 +4,7 @@
 
 #include "disruptor/EventFactory.h"
 
-namespace nano_stream::bench::perftest::support {
+namespace disruptor::bench::perftest::support {
 
 class ValueEvent {
 public:
@@ -30,5 +30,5 @@ public:
 inline std::shared_ptr<disruptor::EventFactory<ValueEvent>>
     ValueEvent::EVENT_FACTORY = std::make_shared<ValueEventFactory>();
 
-} // namespace nano_stream::bench::perftest::support
+} // namespace disruptor::bench::perftest::support
 
