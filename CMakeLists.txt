@@ -18,9 +18,6 @@ endif()
 # Find dependencies
 find_package(Threads REQUIRED)
 
-# Include directories
-include_directories(include)
-
 # Build options
 option(BUILD_TESTING "Build tests" ON)
 option(BUILD_BENCHMARKS "Build benchmarks" ON)
@@ -31,30 +28,29 @@ if(BUILD_TESTING)
     enable_testing()
 endif()
 
-# Create library with both headers and implementation
-add_library(nano-stream 
-    # TODO: Add Aeron client implementations after 1:1 translation from Java
-)
+# Create header-only library
+# TODO: Add Aeron client implementations after 1:1 translation from Java
+add_library(nano-stream INTERFACE)
 
 target_include_directories(nano-stream 
-    PUBLIC 
+    INTERFACE 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(nano-stream 
-    PUBLIC 
+    INTERFACE 
         Threads::Threads
 )
 
 # Set target properties
-target_compile_features(nano-stream PUBLIC cxx_std_20)
+target_compile_features(nano-stream INTERFACE cxx_std_20)
 
 # Suppress unused parameter warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(nano-stream PRIVATE -Wno-unused-parameter)
+    target_compile_options(nano-stream INTERFACE -Wno-unused-parameter)
 elseif(MSVC)
-    target_compile_options(nano-stream PRIVATE /wd4100)
+    target_compile_options(nano-stream INTERFACE /wd4100)
 endif()
 
 # Add subdirectories conditionally
