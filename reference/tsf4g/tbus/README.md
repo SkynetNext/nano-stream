@@ -12,7 +12,7 @@ based on the snippet you provided.
 ## Notes
 
 - This is placed under `reference/` as third-party/reference code. It is **not** wired into the main
-  `nano-stream` build by default.
+  `disruptor-cpp` build by default.
 - If you want to build it standalone on Linux, see `CMakeLists.txt` in this folder.
 
 
