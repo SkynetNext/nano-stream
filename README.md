@@ -22,7 +22,7 @@ Run all C++ JMH-ported benchmarks and output JSON:
 
 ```powershell
 cd F:\disruptor-cpp\build
-.\benchmarks\nano_stream_benchmarks.exe --benchmark_filter='^JMH_' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true --benchmark_out=..\benchmark_cpp.json --benchmark_out_format=json
+.\benchmarks\disruptor_cpp_benchmarks.exe --benchmark_filter='^JMH_' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true --benchmark_out=..\benchmark_cpp.json --benchmark_out_format=json
 ```
 
 Run Java JMH (Git Bash, using the JMH jar) and output JSON:

@@ -23,18 +23,18 @@ file(GLOB_RECURSE DISRUPTOR_PORTED_TEST_SOURCES
 )
 
 if(DISRUPTOR_PORTED_TEST_SOURCES)
-    add_executable(nano_stream_tests
+    add_executable(disruptor_cpp_tests
         ${DISRUPTOR_PORTED_TEST_SOURCES}
     )
 
-    target_link_libraries(nano_stream_tests
+    target_link_libraries(disruptor_cpp_tests
         PRIVATE
             disruptor-cpp
             gtest
             gtest_main
     )
 
-    target_include_directories(nano_stream_tests
+    target_include_directories(disruptor_cpp_tests
         PRIVATE
             ${CMAKE_SOURCE_DIR}/include
             ${CMAKE_SOURCE_DIR}
@@ -42,13 +42,13 @@ if(DISRUPTOR_PORTED_TEST_SOURCES)
 
     # Suppress unused parameter warnings for tests
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-        target_compile_options(nano_stream_tests PRIVATE -Wno-unused-parameter)
+        target_compile_options(disruptor_cpp_tests PRIVATE -Wno-unused-parameter)
     elseif(MSVC)
-        target_compile_options(nano_stream_tests PRIVATE /wd4100)
+        target_compile_options(disruptor_cpp_tests PRIVATE /wd4100)
     endif()
 
     include(GoogleTest)
-    gtest_discover_tests(nano_stream_tests)
+    gtest_discover_tests(disruptor_cpp_tests)
 else()
     message(STATUS "No ported Disruptor tests found under tests/disruptor/**")
 endif()

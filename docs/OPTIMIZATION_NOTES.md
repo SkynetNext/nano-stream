@@ -136,12 +136,12 @@ and call are eliminated at compile time. This is better than `[[unlikely]]` beca
 
 - `cmake -S . -B build-perf -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=gcc-12 -DCMAKE_CXX_COMPILER=g++-12`
 - `cmake --build build-perf -j`
-- `./build-perf/benchmarks/nano_stream_benchmarks --benchmark_filter='^JMH_SingleProducerSingleConsumer_producing($|/.*)' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true`
+- `./build-perf/benchmarks/disruptor_cpp_benchmarks --benchmark_filter='^JMH_SingleProducerSingleConsumer_producing($|/.*)' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true`
 
 ### Perf workflow (Linux)
 
 - Record (recommend `cycles:u` and moderate sampling frequency to avoid lost samples):
-  - `sudo perf record -e cycles:u -F 999 -g --call-graph=dwarf -- ./build-perf/benchmarks/nano_stream_benchmarks --benchmark_filter='^JMH_SingleProducerSingleConsumer_producing($|/.*)' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true`
+  - `sudo perf record -e cycles:u -F 999 -g --call-graph=dwarf -- ./build-perf/benchmarks/disruptor_cpp_benchmarks --benchmark_filter='^JMH_SingleProducerSingleConsumer_producing($|/.*)' --benchmark_min_warmup_time=10 --benchmark_min_time=5s --benchmark_repetitions=3 --benchmark_report_aggregates_only=true`
 - Export text reports:
   - `sudo perf report --stdio --no-children --percent-limit 0.5 > perf_cycles.txt`
   - `sudo perf report --stdio -g graph,0.5,caller --percent-limit 0.5 > perf_cycles_callgraph.txt`
@@ -177,7 +177,7 @@ If further improvement is needed after validation:
 
 ## Notes / caveats
 
-- These changes are performance-oriented and should be validated against the test suite (`nano_stream_tests`) and the benchmark suite (`nano_stream_benchmarks`).
+- These changes are performance-oriented and should be validated against the test suite (`disruptor_cpp_tests`) and the benchmark suite (`disruptor_cpp_benchmarks`).
 - Cross-language comparisons must still be interpreted carefully (OS scheduler differences, CPU frequency behavior, benchmark harness differences).
 
 

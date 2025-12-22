@@ -71,7 +71,7 @@ jobs:
       - name: Run Benchmarks
         run: |
           cd build
-          ./benchmarks/nano_stream_benchmarks \
+          ./benchmarks/disruptor_cpp_benchmarks \
             --benchmark_format=json \
             --benchmark_out=benchmark_results_cpp.json \
             --benchmark_min_time=0.5 || true
@@ -122,7 +122,7 @@ jobs:
       - name: Run C++ Benchmarks
         run: |
           cd build
-          ./benchmarks/nano_stream_benchmarks \
+          ./benchmarks/disruptor_cpp_benchmarks \
             --benchmark_format=json \
             --benchmark_out=../benchmark_cpp.json \
             --benchmark_min_warmup_time=10 \
@@ -203,7 +203,7 @@ jobs:
             chmod +x scripts/compare_benchmarks.sh
             ./scripts/compare_benchmarks.sh > comparison_report.md
           else
-            echo "# Performance Comparison: Nano-Stream (C++) vs Disruptor (Java)" > comparison_report.md
+            echo "# Performance Comparison: Disruptor-CPP (C++) vs Disruptor (Java)" > comparison_report.md
             echo "" >> comparison_report.md
             echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> comparison_report.md
             echo "" >> comparison_report.md

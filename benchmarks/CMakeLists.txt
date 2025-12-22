@@ -44,21 +44,21 @@ else()
 endif()
 
 # Create benchmark executable
-file(GLOB_RECURSE NANO_STREAM_JMH_BENCH_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE DISRUPTOR_CPP_JMH_BENCH_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/jmh/*.cpp"
 )
 
-file(GLOB_RECURSE NANO_STREAM_PERFTEST_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE DISRUPTOR_CPP_PERFTEST_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/perftest/**/*.cpp"
 )
 
-add_executable(nano_stream_benchmarks
-    ${NANO_STREAM_JMH_BENCH_SOURCES}
-    ${NANO_STREAM_PERFTEST_SOURCES}
+add_executable(disruptor_cpp_benchmarks
+    ${DISRUPTOR_CPP_JMH_BENCH_SOURCES}
+    ${DISRUPTOR_CPP_PERFTEST_SOURCES}
     benchmark_main.cpp
 )
 
-target_link_libraries(nano_stream_benchmarks
+target_link_libraries(disruptor_cpp_benchmarks
     PRIVATE
         disruptor-cpp
         benchmark::benchmark
@@ -68,11 +68,11 @@ target_link_libraries(nano_stream_benchmarks
 if (UNIX AND NOT APPLE)
     if (EXISTS ${CMAKE_SOURCE_DIR}/reference/tsf4g/tbus/CMakeLists.txt)
         add_subdirectory(${CMAKE_SOURCE_DIR}/reference/tsf4g/tbus ${CMAKE_BINARY_DIR}/tsf4g-tbus-build EXCLUDE_FROM_ALL)
-        target_link_libraries(nano_stream_benchmarks PRIVATE tsf4g_tbus)
+        target_link_libraries(disruptor_cpp_benchmarks PRIVATE tsf4g_tbus)
     endif()
 endif()
 
-target_include_directories(nano_stream_benchmarks
+target_include_directories(disruptor_cpp_benchmarks
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -80,7 +80,7 @@ target_include_directories(nano_stream_benchmarks
 
 # Set optimization flags for benchmarks
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(nano_stream_benchmarks PRIVATE -O3 -march=native -mtune=native -Wno-unused-parameter)
+    target_compile_options(disruptor_cpp_benchmarks PRIVATE -O3 -march=native -mtune=native -Wno-unused-parameter)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    target_compile_options(nano_stream_benchmarks PRIVATE /O2 /arch:AVX2 /wd4100)
+    target_compile_options(disruptor_cpp_benchmarks PRIVATE /O2 /arch:AVX2 /wd4100)
 endif()

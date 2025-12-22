@@ -75,19 +75,19 @@ After successful build:
 ### Unit Tests
 ```bash
 # Linux/macOS
-./tests/nano_stream_tests
+./tests/disruptor_cpp_tests
 
 # Windows
-.\tests\Release\nano_stream_tests.exe
+.\tests\Release\disruptor_cpp_tests.exe
 ```
 
 ### Benchmarks
 ```bash
 # Linux/macOS
-./benchmarks/nano_stream_benchmarks
+./benchmarks/disruptor_cpp_benchmarks
 
 # Windows
-.\benchmarks\Release\nano_stream_benchmarks.exe
+.\benchmarks\Release\disruptor_cpp_benchmarks.exe
 ```
 
 ### Example Program

@@ -1,5 +1,5 @@
 ---
-# Nano-Stream C++ Code Style Configuration
+# Disruptor-CPP Code Style Configuration
 # Based on Google style with some customizations for performance-critical code
 
 BasedOnStyle: Google
@@ -59,7 +59,7 @@ SpacesInSquareBrackets: false
 # Include sorting
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex:           '^"nano_stream/'
+  - Regex:           '^"disruptor/'
     Priority:        1
   - Regex:           '^<[[:alnum:]_]+>'
     Priority:        2
