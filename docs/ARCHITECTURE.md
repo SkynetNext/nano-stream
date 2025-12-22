@@ -173,6 +173,29 @@ Each `Sequence` instance is aligned to cache-line boundaries:
 - Reduces cache coherency traffic
 - Improves multi-core performance
 
+## Hardware Latency Context
+
+*Reference: Martin Thompson (Disruptor/Aeron core architect) frequently cited hardware latency benchmarks in QCon presentations and LMAX technical blogs (2018-2022), based on DDR4, Linux x86_64, 3GHz CPU.*
+
+Understanding hardware latency helps explain why Disruptor's design choices matter:
+
+| Operation | Typical Latency | 3GHz Clock Cycles | Notes |
+|-----------|----------------|-------------------|-------|
+| L1 cache hit | 0.5 ns | 1-2 | Core-private, baseline |
+| L2 cache hit | 3-5 ns | 9-15 | On-chip, 6-10x slower than L1 |
+| L3 cache hit | 10-20 ns | 30-60 | Shared across socket cores |
+| DDR4 main memory (random read) | 60-80 ns | 180-240 | Cross-cache to main memory |
+| StoreLoad barrier | 15-25 ns | 45-75 | x86 memory visibility sync |
+| Lock-free CAS (success) | 15-30 ns | 45-90 | Foundation of lock-free programming |
+| Mutex lock/unlock (no contention) | 25-50 ns | 75-150 | With contention: escalates to μs |
+| Thread context switch | 1-5 μs | 3000-15000 | Kernel scheduling + cache invalidation |
+| Disruptor (shared memory, lock-free) | 50-200 ns | 150-600 | Zero-copy + lock-free, direct thread-to-thread |
+| Aeron IPC (shared memory) | 300 ns-1 μs | 900-3000 | Low-overhead protocol + lock-free |
+| localhost UDP (CPU-bound + zero-copy) | 500 ns-2 μs | 1500-6000 | p50 latency, p99: < 5 μs |
+| localhost TCP (NODELAY) | 5-10 μs | 15000-30000 | p50 latency, p99: 10-20 μs |
+
+**Key Insight**: Disruptor/Aeron design philosophy is to minimize software overhead to "hardware baseline + minimal protocol/scheduling overhead" by using cache-line padding, lock-free CAS, and zero-copy techniques to keep operations within the minimum cycle count.
+
 ## Performance Characteristics
 
 *Note: End-to-end tests (OneToOneSequencedThroughputTest) are more representative of real-world performance than micro-benchmarks, as they include full system overhead (thread scheduling, wait strategies, batch processing, synchronization).*
