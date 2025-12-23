@@ -8,19 +8,12 @@
 // to C++ idioms while keeping semantics.
 
 #include "../BatchEventProcessor.h"
-#include "../BatchEventProcessorBuilder.h"
-#include "../BatchRewindStrategy.h"
 #include "../EventFactory.h"
-#include "../EventHandler.h"
 #include "../EventHandlerIdentity.h"
 #include "../EventProcessor.h"
 #include "../EventTranslator.h"
 #include "../EventTranslatorOneArg.h"
-#include "../EventTranslatorThreeArg.h"
-#include "../EventTranslatorTwoArg.h"
 #include "../ExceptionHandler.h"
-#include "../RewindableEventHandler.h"
-#include "../RewindableException.h"
 #include "../RingBuffer.h"
 #include "../Sequence.h"
 #include "../TimeoutException.h"
@@ -152,6 +145,16 @@ public:
         static_cast<int>(sequences.size()));
   }
 
+  // After EventProcessors (Java: after(EventProcessor... processors))
+  EventHandlerGroup<T, Producer, WaitStrategyT>
+  after(EventProcessor *const *processors, int count) {
+    std::vector<Sequence *> sequences =
+        util::Util::getSequencesFor(processors, count);
+    return EventHandlerGroup<T, Producer, WaitStrategyT>(
+        *this, consumerRepository_, sequences.data(),
+        static_cast<int>(sequences.size()));
+  }
+
   // Publishing helpers (subset used by codebase)
   void publishEvent(EventTranslator<T> &translator) {
     ringBuffer_->publishEvent(translator);
@@ -255,7 +258,8 @@ private:
 
   // Owning wait strategy storage so non-movable strategies (mutex/cv) work.
   // Only used when no external WaitStrategy is provided (first constructor).
-  // Must be declared before ringBuffer_ so it's initialized first (ringBuffer_ needs a reference to it).
+  // Must be declared before ringBuffer_ so it's initialized first (ringBuffer_
+  // needs a reference to it).
   std::optional<WaitStrategyT> ownedWaitStrategy_;
   std::shared_ptr<RingBufferT> ringBuffer_;
   ThreadFactory &threadFactory_;
