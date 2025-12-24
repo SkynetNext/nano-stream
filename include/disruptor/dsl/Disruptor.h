@@ -68,7 +68,7 @@ public:
         ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
                                     *ownedWaitStrategy_)),
         threadFactory_(threadFactory), consumerRepository_(), started_(false),
-        exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
+        exceptionHandler_(std::make_unique<ExceptionHandlerWrapper<T>>()) {}
 
   Disruptor(std::shared_ptr<EventFactory<T>> eventFactory, int ringBufferSize,
             ThreadFactory &threadFactory, WaitStrategyT &waitStrategy)
@@ -76,7 +76,7 @@ public:
         ringBuffer_(makeRingBuffer_(std::move(eventFactory), ringBufferSize,
                                     waitStrategy)),
         threadFactory_(threadFactory), consumerRepository_(), started_(false),
-        exceptionHandler_(new ExceptionHandlerWrapper<T>()) {}
+        exceptionHandler_(std::make_unique<ExceptionHandlerWrapper<T>>()) {}
 
 private:
   static std::shared_ptr<RingBufferT>
@@ -112,13 +112,18 @@ public:
 
   // Exception handling
   void handleExceptionsWith(ExceptionHandler<T> &exceptionHandler) {
-    exceptionHandler_ = &exceptionHandler;
+    // Release ownership of the default wrapper, switch to external handler
+    exceptionHandler_.reset();
+    // Store raw pointer for external handler (caller owns the lifetime)
+    exceptionHandlerPtr_ = &exceptionHandler;
   }
 
   void setDefaultExceptionHandler(ExceptionHandler<T> &exceptionHandler) {
     checkNotStarted();
-    auto *wrapper =
-        dynamic_cast<ExceptionHandlerWrapper<T> *>(exceptionHandler_);
+    ExceptionHandlerWrapper<T> *wrapper = nullptr;
+    if (exceptionHandler_) {
+      wrapper = dynamic_cast<ExceptionHandlerWrapper<T> *>(exceptionHandler_.get());
+    }
     if (wrapper == nullptr) {
       throw std::runtime_error("setDefaultExceptionHandler can not be used "
                                "after handleExceptionsWith");
@@ -184,7 +189,7 @@ public:
     } catch (const TimeoutException &e) {
       // Java: shutdown() swallows TimeoutException and delegates to exception
       // handler.
-      exceptionHandler_->handleOnShutdownException(e);
+      getExceptionHandler().handleOnShutdownException(e);
     }
   }
 
@@ -269,10 +274,19 @@ private:
   std::vector<std::unique_ptr<EventProcessor>> ownedProcessors_;
   ConsumerRepository<BarrierPtr> consumerRepository_;
   std::atomic<bool> started_;
-  ExceptionHandler<T> *exceptionHandler_;
+  std::unique_ptr<ExceptionHandler<T>> exceptionHandler_;
+  ExceptionHandler<T> *exceptionHandlerPtr_{nullptr};  // Points to external handler when handleExceptionsWith is used
   // Hold SequenceBarriers created by the DSL to ensure they outlive processors
   // that reference them.
   std::vector<BarrierPtr> ownedBarriers_;
+
+  // Helper to get the current exception handler (either owned or external)
+  ExceptionHandler<T> &getExceptionHandler() {
+    if (exceptionHandlerPtr_ != nullptr) {
+      return *exceptionHandlerPtr_;
+    }
+    return *exceptionHandler_;
+  }
 
   void checkNotStarted() {
     if (started_.load(std::memory_order_acquire)) {
@@ -322,7 +336,7 @@ private:
         *ringBuffer_, *barrier, handler, std::numeric_limits<int>::max(),
         nullptr);
     // Apply default exception handler if it is wrapper or concrete.
-    processor->setExceptionHandler(*exceptionHandler_);
+    processor->setExceptionHandler(getExceptionHandler());
     auto &seq = processor->getSequence();
     consumerRepository_.add(*processor, handler, barrier);
     ownedProcessors_.push_back(std::move(processor));

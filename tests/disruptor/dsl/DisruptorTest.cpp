@@ -880,7 +880,7 @@ TEST(DisruptorTest, shouldBlockProducerUntilAllEventProcessorsHaveAdvanced) {
   stubPublisher.halt();
   publisherThread.join();
   helper.tearDown();
-  d.halt();
+  d.halt();  // Ensure Disruptor threads are joined before destruction
 }
 
 TEST(DisruptorTest, shouldBeAbleToOverrideTheExceptionHandlerForAEventProcessor) {
