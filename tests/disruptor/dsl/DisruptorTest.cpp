@@ -283,20 +283,19 @@ TEST(DisruptorTest,
         disruptor::dsl::stubs::EventHandlerStub<Event> &handler)
         : handler_(&handler) {}
 
-    disruptor::EventProcessor &
+    std::shared_ptr<disruptor::EventProcessor>
     createEventProcessor(RingBufferT &ringBuffer,
                          disruptor::Sequence *const *barrierSequences,
                          int count) override {
       EXPECT_EQ(0, count) << "Should not have had any barrier sequences";
       disruptor::BatchEventProcessorBuilder builder;
       barrier_ = ringBuffer.newBarrier(barrierSequences, count);
-      processor_ = builder.build(ringBuffer, *barrier_, *handler_);
-      return *processor_;
+      auto processor = builder.build(ringBuffer, *barrier_, *handler_);
+      return processor;
     }
 
   private:
     disruptor::dsl::stubs::EventHandlerStub<Event> *handler_;
-    std::shared_ptr<disruptor::EventProcessor> processor_;
     decltype(std::declval<RingBufferT &>().newBarrier(nullptr, 0)) barrier_;
   };
 
@@ -335,20 +334,19 @@ TEST(DisruptorTest, shouldHonourDependenciesForCustomProcessors) {
         disruptor::dsl::stubs::EventHandlerStub<Event> &handler)
         : handler_(&handler) {}
 
-    disruptor::EventProcessor &
+    std::shared_ptr<disruptor::EventProcessor>
     createEventProcessor(RingBufferT2 &ringBuffer,
                          disruptor::Sequence *const *barrierSequences,
                          int count) override {
       EXPECT_EQ(1, count) << "Should have had a barrier sequence";
       disruptor::BatchEventProcessorBuilder builder;
       barrier_ = ringBuffer.newBarrier(barrierSequences, count);
-      processor_ = builder.build(ringBuffer, *barrier_, *handler_);
-      return *processor_;
+      auto processor = builder.build(ringBuffer, *barrier_, *handler_);
+      return processor;
     }
 
   private:
     disruptor::dsl::stubs::EventHandlerStub<Event> *handler_;
-    std::shared_ptr<disruptor::EventProcessor> processor_;
     decltype(std::declval<RingBufferT2 &>().newBarrier(nullptr, 0)) barrier_;
   };
 
@@ -655,19 +653,18 @@ TEST(DisruptorTest, shouldSupportAddingCustomEventProcessorWithFactory) {
         disruptor::dsl::stubs::SleepingEventHandler &handler)
         : handler_(&handler) {}
 
-    disruptor::EventProcessor &
+    std::shared_ptr<disruptor::EventProcessor>
     createEventProcessor(RingBufferT &ringBuffer,
                          disruptor::Sequence *const *barrierSequences,
                          int count) override {
       disruptor::BatchEventProcessorBuilder builder;
       barrier_ = ringBuffer.newBarrier(barrierSequences, count);
-      processor_ = builder.build(ringBuffer, *barrier_, *handler_);
-      return *processor_;
+      auto processor = builder.build(ringBuffer, *barrier_, *handler_);
+      return processor;
     }
 
   private:
     disruptor::dsl::stubs::SleepingEventHandler *handler_;
-    std::shared_ptr<disruptor::EventProcessor> processor_;
     decltype(std::declval<RingBufferT &>().newBarrier(nullptr, 0)) barrier_;
   };
 
