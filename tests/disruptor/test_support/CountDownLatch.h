@@ -25,8 +25,13 @@ public:
     cv_.wait(lock, [&] { return count_ == 0; });
   }
 
+  int64_t getCount() const {
+    std::lock_guard<std::mutex> lock(mu_);
+    return count_;
+  }
+
 private:
-  std::mutex mu_;
+  mutable std::mutex mu_;
   std::condition_variable cv_;
   int64_t count_;
 };
