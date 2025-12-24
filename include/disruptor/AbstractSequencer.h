@@ -74,6 +74,10 @@ public:
            "waitStrategy=" + "..., cursor=..., gatingSequences=...}";
   }
 
+  // Public accessor for waitStrategy (needed for WaitSpinningHelper, matches Java reflection access)
+  WaitStrategyT &getWaitStrategy() { return *waitStrategy_; }
+  const WaitStrategyT &getWaitStrategy() const { return *waitStrategy_; }
+
 protected:
   int bufferSize_;
   WaitStrategyT *waitStrategy_;

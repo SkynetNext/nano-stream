@@ -42,6 +42,10 @@ public:
     cv_.notify_all();
   }
 
+  // Public accessors for WaitSpinningHelper (matches Java reflection access)
+  std::mutex &getMutex() { return mutex_; }
+  std::condition_variable &getConditionVariable() { return cv_; }
+
 private:
   std::mutex mutex_;
   std::condition_variable cv_;

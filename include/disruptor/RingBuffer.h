@@ -63,6 +63,10 @@ public:
 
   // Cursored
   int64_t getCursor() const override { return sequencer().getCursor(); }
+  
+  // Public accessor for sequencer (needed for WaitSpinningHelper, matches Java reflection access)
+  SequencerT &getSequencer() { return sequencer(); }
+  const SequencerT &getSequencer() const { return sequencer(); }
 
   // RingBuffer-specific helpers from Java
   void addGatingSequences(Sequence *const *gatingSequences, int count) {
