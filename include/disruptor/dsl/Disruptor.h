@@ -272,7 +272,7 @@ private:
   // Own BatchEventProcessors created by DSL so their lifetime spans the
   // disruptor. Must be declared before consumerRepository_ so processors are
   // destroyed after EventProcessorInfo (which holds raw pointers to them).
-  std::vector<std::unique_ptr<EventProcessor>> ownedProcessors_;
+  std::vector<std::shared_ptr<EventProcessor>> ownedProcessors_;
   ConsumerRepository<BarrierPtr> consumerRepository_;
   std::atomic<bool> started_;
   std::unique_ptr<ExceptionHandler<T>> exceptionHandler_;
@@ -334,14 +334,14 @@ private:
     // Java uses BatchEventProcessorBuilder to configure max batch size; we use
     // default max here. (If/when DSL exposes builder configuration, wire it
     // through.)
-    auto processor = std::make_unique<BatchEventProcessor<T, BarrierT>>(
+    auto processor = std::make_shared<BatchEventProcessor<T, BarrierT>>(
         *ringBuffer_, *barrier, handler, std::numeric_limits<int>::max(),
         nullptr);
     // Apply default exception handler if it is wrapper or concrete.
     processor->setExceptionHandler(getExceptionHandler());
     auto &seq = processor->getSequence();
     consumerRepository_.add(*processor, handler, barrier);
-    ownedProcessors_.push_back(std::move(processor));
+    ownedProcessors_.push_back(processor);
     outSequences.push_back(&seq);
   }
 
