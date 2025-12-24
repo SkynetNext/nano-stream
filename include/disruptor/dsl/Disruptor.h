@@ -122,7 +122,8 @@ public:
     checkNotStarted();
     ExceptionHandlerWrapper<T> *wrapper = nullptr;
     if (exceptionHandler_) {
-      wrapper = dynamic_cast<ExceptionHandlerWrapper<T> *>(exceptionHandler_.get());
+      wrapper =
+          dynamic_cast<ExceptionHandlerWrapper<T> *>(exceptionHandler_.get());
     }
     if (wrapper == nullptr) {
       throw std::runtime_error("setDefaultExceptionHandler can not be used "
@@ -275,7 +276,8 @@ private:
   ConsumerRepository<BarrierPtr> consumerRepository_;
   std::atomic<bool> started_;
   std::unique_ptr<ExceptionHandler<T>> exceptionHandler_;
-  ExceptionHandler<T> *exceptionHandlerPtr_{nullptr};  // Points to external handler when handleExceptionsWith is used
+  ExceptionHandler<T> *exceptionHandlerPtr_{
+      nullptr}; // Points to external handler when handleExceptionsWith is used
   // Hold SequenceBarriers created by the DSL to ensure they outlive processors
   // that reference them.
   std::vector<BarrierPtr> ownedBarriers_;
@@ -349,10 +351,11 @@ private:
             std::vector<Sequence *> &outSequences,
             ::disruptor::dsl::EventProcessorFactory<T, RingBufferT> &factory) {
     // Create processor via factory and wire it into repository.
-    EventProcessor &processor = factory.createEventProcessor(
+    auto processor = factory.createEventProcessor(
         *ringBuffer_, barrierSequences, barrierCount);
-    consumerRepository_.add(processor);
-    outSequences.push_back(&processor.getSequence());
+    ownedProcessors_.push_back(processor);
+    consumerRepository_.add(*processor);
+    outSequences.push_back(&processor->getSequence());
   }
 
   void updateGatingSequencesForNextInChain(
