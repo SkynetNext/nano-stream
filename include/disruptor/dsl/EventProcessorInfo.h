@@ -18,8 +18,10 @@ class EventProcessorInfo final : public ConsumerInfo<BarrierPtrT> {
 public:
   // Use shared_ptr to align with Java GC semantics - objects are kept alive as long as referenced
   EventProcessorInfo(std::shared_ptr<EventProcessor> eventprocessor, BarrierPtrT barrier)
-      : eventprocessor_(std::move(eventprocessor)), barrier_(barrier), endOfChain_(true),
-        sequences_{&eventprocessor_->getSequence()} {}
+      : eventprocessor_(std::move(eventprocessor)), barrier_(barrier), endOfChain_(true) {
+    // Initialize sequences_ after eventprocessor_ is moved, to ensure it's valid
+    sequences_[0] = &eventprocessor_->getSequence();
+  }
 
   EventProcessor& getEventProcessor() { return *eventprocessor_; }
 
@@ -32,6 +34,8 @@ public:
   void start(ThreadFactory& threadFactory) override {
     // Java: Thread thread = threadFactory.newThread(eventprocessor); thread.start();
     // C++: std::thread starts immediately; we must keep it and join on shutdown to avoid use-after-free.
+    // Capture shared_ptr by value in lambda to keep EventProcessor alive while thread is running.
+    // shared_ptr copy is lightweight (just increments reference count), no need for move.
     std::shared_ptr<EventProcessor> ep = eventprocessor_;
     thread_ = threadFactory.newThread([ep] { ep->run(); });
   }
@@ -53,6 +57,8 @@ private:
   BarrierPtrT barrier_;
   bool endOfChain_;
   Sequence* sequences_[1];
+  // thread_ must be declared last to ensure it's destroyed before eventprocessor_
+  // (thread's lambda captures shared_ptr, so eventprocessor_ must outlive thread_)
   std::thread thread_{};
 };
 

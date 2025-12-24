@@ -16,6 +16,7 @@
 
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 namespace disruptor::dsl {
@@ -51,7 +52,9 @@ public:
     std::vector<Sequence *> combined;
     combined.reserve(sequences_.size() + static_cast<size_t>(count));
     for (int i = 0; i < count; ++i) {
-      consumerRepository_->add(*processors[i]);
+      // Wrap raw pointer in shared_ptr with no-op deleter (processor lifetime managed externally)
+      auto processorPtr = std::shared_ptr<EventProcessor>(processors[i], [](EventProcessor*){});
+      consumerRepository_->add(processorPtr);
       combined.push_back(&processors[i]->getSequence());
     }
     combined.insert(combined.end(), sequences_.begin(), sequences_.end());
@@ -60,9 +63,11 @@ public:
         static_cast<int>(combined.size()));
   }
 
-  template <typename... Handlers>
-  EventHandlerGroup<T, Producer, WaitStrategyT> then(Handlers &...handlers) {
-    return handleEventsWith(handlers...);
+  // then() supports both handlers and factories (matches Java then() overloads)
+  template <typename... Args>
+  EventHandlerGroup<T, Producer, WaitStrategyT> then(Args &...args) {
+    // Use SFINAE to dispatch to appropriate method based on argument types
+    return handleEventsWith(args...);
   }
 
   template <typename... Handlers>
