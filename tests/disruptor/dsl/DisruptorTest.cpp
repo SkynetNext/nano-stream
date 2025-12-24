@@ -238,6 +238,9 @@ TEST(DisruptorTest, shouldSupportMultipleCustomProcessorsAsDependencies) {
   auto barrier2 = ringBuffer.newBarrier();
   auto processor2 = builder2.build(ringBuffer, *barrier2, delayedEventHandler2);
 
+  // Keep processors alive for the lifetime of the test
+  std::vector<std::shared_ptr<disruptor::EventProcessor>> keptProcessors = {
+      processor1, processor2};
   disruptor::EventProcessor *processors[] = {processor1.get(),
                                              processor2.get()};
   d.handleEventsWith(processors, 2);
@@ -493,6 +496,9 @@ TEST(DisruptorTest, shouldAddEventProcessorsAfterPublishing) {
   ringBuffer.publish(ringBuffer.next());
   ringBuffer.publish(ringBuffer.next());
 
+  // Keep processors alive for the lifetime of the test
+  std::vector<std::shared_ptr<disruptor::EventProcessor>> keptProcessors = {
+      b1, b2, b3};
   disruptor::EventProcessor *processors[] = {b1.get(), b2.get(), b3.get()};
   d.handleEventsWith(processors, 3);
 
@@ -672,6 +678,8 @@ TEST(DisruptorTest, shouldSupportAddingCustomEventProcessorWithFactory) {
   // Keep factory alive for the lifetime of the test
   TestEventProcessorFactory b2(handler2);
 
+  // Keep processor alive for the lifetime of the test
+  std::shared_ptr<disruptor::EventProcessor> keptProcessor = b1;
   disruptor::EventProcessor *processors[] = {b1.get()};
   d.handleEventsWith(processors, 1).thenFactories(b2);
 
@@ -1028,6 +1036,8 @@ TEST(DisruptorTest, shouldSupportCustomProcessorsAsDependencies) {
   auto barrier = ringBuffer.newBarrier();
   auto processor = builder.build(ringBuffer, *barrier, delayedEventHandler);
 
+  // Keep processor alive for the lifetime of the test
+  std::shared_ptr<disruptor::EventProcessor> keptProcessor = processor;
   disruptor::EventProcessor *processors[] = {processor.get()};
   d.handleEventsWith(processors, 1).then(handlerWithBarrier);
 
@@ -1062,6 +1072,8 @@ TEST(DisruptorTest, shouldSupportHandlersAsDependenciesToCustomProcessors) {
   disruptor::BatchEventProcessorBuilder builder;
   auto processor =
       builder.build(ringBuffer, *sequenceBarrier, handlerWithBarrier);
+  // Keep processor alive for the lifetime of the test
+  std::shared_ptr<disruptor::EventProcessor> keptProcessor = processor;
   disruptor::EventProcessor *processors[] = {processor.get()};
   d.handleEventsWith(processors, 1);
 
@@ -1098,6 +1110,8 @@ TEST(DisruptorTest, shouldSupportCustomProcessorsAndHandlersAsDependencies) {
   auto processor =
       builder.build(ringBuffer, *sequenceBarrier, delayedEventHandler2);
 
+  // Keep processor alive for the lifetime of the test
+  std::shared_ptr<disruptor::EventProcessor> keptProcessor = processor;
   disruptor::EventProcessor *processors[] = {processor.get()};
   d.after(handlers4, 1)
       .and_(processors, 1)
