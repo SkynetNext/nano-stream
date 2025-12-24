@@ -272,15 +272,18 @@ TEST(DisruptorTest, shouldMakeEntriesAvailableToFirstCustomProcessorsImmediately
     std::shared_ptr<disruptor::EventProcessor> processor_;
   };
 
+  // Keep factory alive for the lifetime of the test
   TestEventProcessorFactory factory(eventHandler);
   d.handleEventsWith(factory);
 
+  // Java: ensureTwoEventsProcessedAccordingToDependencies(countDownLatch)
+  DisruptorTestHelper helper;
   NoOpTranslator translator;
-  d.publishEvent(translator);
-  d.publishEvent(translator);
-  d.start();
+  helper.publishEvent(d);
+  helper.publishEvent(d);
 
   countDownLatch.await();
+  helper.tearDown();
   d.halt();
 }
 
@@ -318,21 +321,19 @@ TEST(DisruptorTest, shouldHonourDependenciesForCustomProcessors) {
     std::shared_ptr<disruptor::EventProcessor> processor_;
   };
 
+  // Keep factory alive for the lifetime of the test
   TestEventProcessorFactory2 eventProcessorFactory(eventHandler);
-  d.handleEventsWith(delayedEventHandler).thenFactories(eventProcessorFactory);
+  
+  DisruptorTestHelper helper;
+  auto& delayedEventHandlerFromHelper = helper.createDelayedEventHandler();
+  d.handleEventsWith(delayedEventHandlerFromHelper).thenFactories(eventProcessorFactory);
 
-  d.start();
-  delayedEventHandler.awaitStart();
+  // Java: ensureTwoEventsProcessedAccordingToDependencies(countDownLatch, delayedEventHandler)
+  std::vector<disruptor::dsl::stubs::DelayedEventHandler*> deps;
+  deps.push_back(&delayedEventHandlerFromHelper);
+  ensureTwoEventsProcessedAccordingToDependencies(helper, d, countDownLatch, deps);
 
-  NoOpTranslator translator;
-  d.publishEvent(translator);
-  d.publishEvent(translator);
-
-  delayedEventHandler.processEvent();
-  delayedEventHandler.processEvent();
-
-  countDownLatch.await();
-  delayedEventHandler.stopWaiting();
+  helper.tearDown();
   d.halt();
 }
 
@@ -626,12 +627,16 @@ TEST(DisruptorTest, shouldSupportAddingCustomEventProcessorWithFactory) {
   };
 
   disruptor::dsl::stubs::SleepingEventHandler handler2;
+  // Keep factory alive for the lifetime of the test
   TestEventProcessorFactory b2(handler2);
 
   disruptor::EventProcessor* processors[] = {b1.get()};
   d.handleEventsWith(processors, 1).thenFactories(b2);
 
   d.start();
+
+  // Ensure all processors have time to start before halting
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
   d.halt();
 }
@@ -856,6 +861,9 @@ TEST(DisruptorTest, shouldBlockProducerUntilAllEventProcessorsHaveAdvanced) {
   using SequencerT = disruptor::SingleProducerSequencer<WS>;
   disruptor::dsl::stubs::StubPublisher<SequencerT> stubPublisher(*ringBuffer);
   std::thread publisherThread([&] { stubPublisher.run(); });
+
+  // Give publisher thread time to start
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
   // Java: assertProducerReaches(stubPublisher, 4, true) - waits until >= 4, then checks strict equality
   assertProducerReaches(stubPublisher, 4, true);
