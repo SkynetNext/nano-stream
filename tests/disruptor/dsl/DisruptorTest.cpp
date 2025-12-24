@@ -306,6 +306,7 @@ TEST(DisruptorTest, shouldHonourDependenciesForCustomProcessors) {
 
   disruptor::test_support::CountDownLatch countDownLatch(2);
   disruptor::dsl::stubs::EventHandlerStub<Event> eventHandler(countDownLatch);
+  disruptor::dsl::stubs::DelayedEventHandler delayedEventHandler;
 
   using RingBufferT2 = std::remove_reference_t<decltype(d.getRingBuffer())>;
   class TestEventProcessorFactory2
@@ -338,12 +339,11 @@ TEST(DisruptorTest, shouldHonourDependenciesForCustomProcessors) {
     std::shared_ptr<disruptor::EventProcessor> processor_;
   };
 
-  DisruptorTestHelper helper;
-  auto& delayedEventHandlerFromHelper = helper.createDelayedEventHandler();
-  
-  // Keep factory alive for the lifetime of the test (must outlive Disruptor)
+  // Keep factory alive for the lifetime of the test
   TestEventProcessorFactory2 eventProcessorFactory(eventHandler);
   
+  DisruptorTestHelper helper;
+  auto& delayedEventHandlerFromHelper = helper.createDelayedEventHandler();
   // Java: .then(eventProcessorFactory) - then() accepts both handlers and factories
   d.handleEventsWith(delayedEventHandlerFromHelper).then(eventProcessorFactory);
 
@@ -430,9 +430,8 @@ TEST(DisruptorTest, shouldMakeEntriesAvailableToFirstHandlersImmediately) {
 
   d.handleEventsWith(delayedEventHandler, eventHandler);
 
-  // Java: ensureTwoEventsProcessedAccordingToDependencies(countDownLatch) - no dependencies parameter
-  // This means eventHandler will process events immediately (not delayed), so no need to wait for delayedEventHandler
-  std::vector<disruptor::dsl::stubs::DelayedEventHandler*> deps;  // Empty - no dependencies to wait for
+  std::vector<disruptor::dsl::stubs::DelayedEventHandler*> deps;
+  deps.push_back(&delayedEventHandler);
   helper.ensureTwoEventsProcessedAccordingToDependencies(d, countDownLatch, deps);
 
   helper.tearDown();  // Java: @AfterEach tearDown()
