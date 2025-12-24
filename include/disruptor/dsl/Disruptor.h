@@ -100,10 +100,7 @@ public:
   EventHandlerGroup<T, Producer, WaitStrategyT>
   handleEventsWith(EventProcessor *const *processors, int count) {
     for (int i = 0; i < count; ++i) {
-      // Wrap raw pointer in shared_ptr for lifetime management (aligns with Java GC)
-      // ConsumerRepository will hold the shared_ptr through EventProcessorInfo
-      auto processorPtr = std::shared_ptr<EventProcessor>(processors[i], [](EventProcessor*){});
-      consumerRepository_.add(processorPtr);
+      consumerRepository_.add(*processors[i]);
     }
     auto sequences = util::Util::getSequencesFor(processors, count);
     ringBuffer_->addGatingSequences(sequences.data(),
@@ -317,15 +314,14 @@ private:
     // Java uses BatchEventProcessorBuilder to configure max batch size; we use
     // default max here. (If/when DSL exposes builder configuration, wire it
     // through.)
-    // Use shared_ptr to align with Java GC semantics - objects kept alive as long as referenced
-    auto processor = std::make_shared<BatchEventProcessor<T, BarrierT>>(
+    auto processor = std::make_unique<BatchEventProcessor<T, BarrierT>>(
         *ringBuffer_, *barrier, handler, std::numeric_limits<int>::max(),
         nullptr);
     // Apply default exception handler if it is wrapper or concrete.
     processor->setExceptionHandler(*exceptionHandler_);
     auto &seq = processor->getSequence();
-    // ConsumerRepository will hold the shared_ptr through EventProcessorInfo
-    consumerRepository_.add(processor, handler, barrier);
+    consumerRepository_.add(*processor, handler, barrier);
+    ownedProcessors_.push_back(std::move(processor));
     outSequences.push_back(&seq);
   }
 
@@ -337,16 +333,7 @@ private:
     // Create processor via factory and wire it into repository.
     EventProcessor &processor = factory.createEventProcessor(
         *ringBuffer_, barrierSequences, barrierCount);
-    // Get shared_ptr from factory to manage processor lifetime (aligns with Java GC).
-    // If factory returns nullptr, wrap raw pointer in shared_ptr with no-op deleter.
-    auto processorPtr = factory.getProcessorSharedPtr(processor);
-    if (!processorPtr) {
-      // Factory doesn't manage lifetime - wrap in shared_ptr with no-op deleter
-      // (processor lifetime managed externally, factory must outlive Disruptor)
-      processorPtr = std::shared_ptr<EventProcessor>(&processor, [](EventProcessor*){});
-    }
-    // ConsumerRepository will hold the shared_ptr through EventProcessorInfo
-    consumerRepository_.add(processorPtr);
+    consumerRepository_.add(processor);
     outSequences.push_back(&processor.getSequence());
   }
 
@@ -363,10 +350,9 @@ private:
     (void)processorSequences;
   }
 
-  // Own EventProcessors created by DSL so their lifetime spans the disruptor.
-  // Note: EventProcessors are owned by ConsumerRepository through EventProcessorInfo,
-  // which stores shared_ptr<EventProcessor>. This aligns with Java GC semantics where
-  // objects are kept alive as long as referenced. No need for separate ownedProcessors_.
+  // Own BatchEventProcessors created by DSL so their lifetime spans the
+  // disruptor.
+  std::vector<std::unique_ptr<EventProcessor>> ownedProcessors_;
 };
 
 } // namespace disruptor::dsl

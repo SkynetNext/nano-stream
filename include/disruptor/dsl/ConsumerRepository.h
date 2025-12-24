@@ -20,19 +20,19 @@ namespace disruptor::dsl {
 
 template <typename BarrierPtrT> class ConsumerRepository final {
 public:
-  void add(std::shared_ptr<EventProcessor> eventprocessor,
+  void add(EventProcessor &eventprocessor,
            EventHandlerIdentity &handlerIdentity, BarrierPtrT barrier) {
     auto consumerInfo = std::make_shared<EventProcessorInfo<BarrierPtrT>>(
         eventprocessor, barrier);
     eventProcessorInfoByEventHandler_[&handlerIdentity] = consumerInfo;
-    eventProcessorInfoBySequence_[&eventprocessor->getSequence()] = consumerInfo;
+    eventProcessorInfoBySequence_[&eventprocessor.getSequence()] = consumerInfo;
     consumerInfos_.push_back(std::move(consumerInfo));
   }
 
-  void add(std::shared_ptr<EventProcessor> processor) {
+  void add(EventProcessor &processor) {
     auto consumerInfo = std::make_shared<EventProcessorInfo<BarrierPtrT>>(
         processor, BarrierPtrT{});
-    eventProcessorInfoBySequence_[&processor->getSequence()] = consumerInfo;
+    eventProcessorInfoBySequence_[&processor.getSequence()] = consumerInfo;
     consumerInfos_.push_back(std::move(consumerInfo));
   }
 

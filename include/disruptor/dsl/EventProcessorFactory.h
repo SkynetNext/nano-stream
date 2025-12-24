@@ -6,8 +6,6 @@
 #include "../RingBuffer.h"
 #include "../Sequence.h"
 
-#include <memory>
-
 namespace disruptor::dsl {
 
 template <typename T, typename RingBufferT>
@@ -16,13 +14,6 @@ public:
   virtual ~EventProcessorFactory() = default;
 
   virtual EventProcessor& createEventProcessor(RingBufferT& ringBuffer, Sequence* const* barrierSequences, int count) = 0;
-
-  // Optional method to return shared_ptr for lifetime management.
-  // Default implementation returns nullptr; override if factory manages processor with shared_ptr.
-  virtual std::shared_ptr<EventProcessor> getProcessorSharedPtr(EventProcessor& processor) {
-    (void)processor;
-    return nullptr;
-  }
 };
 
 } // namespace disruptor::dsl
