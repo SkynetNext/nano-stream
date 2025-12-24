@@ -263,6 +263,10 @@ private:
   std::optional<WaitStrategyT> ownedWaitStrategy_;
   std::shared_ptr<RingBufferT> ringBuffer_;
   ThreadFactory &threadFactory_;
+  // Own BatchEventProcessors created by DSL so their lifetime spans the
+  // disruptor. Must be declared before consumerRepository_ so processors are
+  // destroyed after EventProcessorInfo (which holds raw pointers to them).
+  std::vector<std::unique_ptr<EventProcessor>> ownedProcessors_;
   ConsumerRepository<BarrierPtr> consumerRepository_;
   std::atomic<bool> started_;
   ExceptionHandler<T> *exceptionHandler_;
@@ -349,10 +353,6 @@ private:
     }
     (void)processorSequences;
   }
-
-  // Own BatchEventProcessors created by DSL so their lifetime spans the
-  // disruptor.
-  std::vector<std::unique_ptr<EventProcessor>> ownedProcessors_;
 };
 
 } // namespace disruptor::dsl

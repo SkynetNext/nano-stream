@@ -20,7 +20,13 @@ public:
 
   EventProcessor& getEventProcessor() { return *eventprocessor_; }
 
-  Sequence* const* getSequences() override { return sequences_; }
+  // Java version: return new Sequence[]{eventprocessor.getSequence()};
+  // C++ version: dynamically update sequences_ array on each call to ensure
+  // pointer validity (aligns with Java's dynamic array creation).
+  Sequence* const* getSequences() override {
+    sequences_[0] = &eventprocessor_->getSequence();
+    return sequences_;
+  }
   int getSequenceCount() const override { return 1; }
 
   BarrierPtrT getBarrier() override { return barrier_; }
@@ -49,7 +55,9 @@ private:
   EventProcessor* eventprocessor_;
   BarrierPtrT barrier_;
   bool endOfChain_;
-  Sequence* sequences_[1]{&eventprocessor_->getSequence()};
+  // Dynamically updated on each getSequences() call to ensure pointer validity,
+  // aligning with Java version which creates new array each time.
+  Sequence* sequences_[1];
   std::thread thread_{};
 };
 
