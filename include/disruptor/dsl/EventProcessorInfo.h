@@ -7,6 +7,7 @@
 #include "ConsumerInfo.h"
 #include "ThreadFactory.h"
 
+#include <memory>
 #include <stdexcept>
 #include <thread>
 
@@ -15,8 +16,10 @@ namespace disruptor::dsl {
 template <typename BarrierPtrT>
 class EventProcessorInfo final : public ConsumerInfo<BarrierPtrT> {
 public:
-  EventProcessorInfo(EventProcessor& eventprocessor, BarrierPtrT barrier)
-      : eventprocessor_(&eventprocessor), barrier_(barrier), endOfChain_(true) {}
+  // Use shared_ptr to align with Java GC semantics - objects are kept alive as long as referenced
+  EventProcessorInfo(std::shared_ptr<EventProcessor> eventprocessor, BarrierPtrT barrier)
+      : eventprocessor_(std::move(eventprocessor)), barrier_(barrier), endOfChain_(true),
+        sequences_{&eventprocessor_->getSequence()} {}
 
   EventProcessor& getEventProcessor() { return *eventprocessor_; }
 
@@ -29,7 +32,7 @@ public:
   void start(ThreadFactory& threadFactory) override {
     // Java: Thread thread = threadFactory.newThread(eventprocessor); thread.start();
     // C++: std::thread starts immediately; we must keep it and join on shutdown to avoid use-after-free.
-    EventProcessor* ep = eventprocessor_;
+    std::shared_ptr<EventProcessor> ep = eventprocessor_;
     thread_ = threadFactory.newThread([ep] { ep->run(); });
   }
 
@@ -46,10 +49,10 @@ public:
   bool isRunning() override { return eventprocessor_->isRunning(); }
 
 private:
-  EventProcessor* eventprocessor_;
+  std::shared_ptr<EventProcessor> eventprocessor_;
   BarrierPtrT barrier_;
   bool endOfChain_;
-  Sequence* sequences_[1]{&eventprocessor_->getSequence()};
+  Sequence* sequences_[1];
   std::thread thread_{};
 };
 

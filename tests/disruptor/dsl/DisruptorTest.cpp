@@ -267,6 +267,15 @@ TEST(DisruptorTest, shouldMakeEntriesAvailableToFirstCustomProcessorsImmediately
       return *processor_;
     }
 
+    std::shared_ptr<disruptor::EventProcessor> getProcessorSharedPtr(
+        disruptor::EventProcessor& processor) override {
+      // Return shared_ptr if this is our processor
+      if (processor_ && processor_.get() == &processor) {
+        return processor_;
+      }
+      return nullptr;
+    }
+
   private:
     disruptor::dsl::stubs::EventHandlerStub<Event>* handler_;
     std::shared_ptr<disruptor::EventProcessor> processor_;
@@ -314,6 +323,15 @@ TEST(DisruptorTest, shouldHonourDependenciesForCustomProcessors) {
       auto barrier = ringBuffer.newBarrier(barrierSequences, count);
       processor_ = builder.build(ringBuffer, *barrier, *handler_);
       return *processor_;
+    }
+
+    std::shared_ptr<disruptor::EventProcessor> getProcessorSharedPtr(
+        disruptor::EventProcessor& processor) override {
+      // Return shared_ptr if this is our processor
+      if (processor_ && processor_.get() == &processor) {
+        return processor_;
+      }
+      return nullptr;
     }
 
   private:
@@ -619,6 +637,15 @@ TEST(DisruptorTest, shouldSupportAddingCustomEventProcessorWithFactory) {
       auto barrier = ringBuffer.newBarrier(barrierSequences, count);
       processor_ = builder.build(ringBuffer, *barrier, *handler_);
       return *processor_;
+    }
+
+    std::shared_ptr<disruptor::EventProcessor> getProcessorSharedPtr(
+        disruptor::EventProcessor& processor) override {
+      // Return shared_ptr if this is our processor
+      if (processor_ && processor_.get() == &processor) {
+        return processor_;
+      }
+      return nullptr;
     }
 
   private:
