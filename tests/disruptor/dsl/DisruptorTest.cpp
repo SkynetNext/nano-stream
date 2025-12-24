@@ -344,8 +344,7 @@ TEST(DisruptorTest, shouldHonourDependenciesForCustomProcessors) {
   
   DisruptorTestHelper helper;
   auto& delayedEventHandlerFromHelper = helper.createDelayedEventHandler();
-  // Java: .then(eventProcessorFactory) - then() accepts both handlers and factories
-  d.handleEventsWith(delayedEventHandlerFromHelper).then(eventProcessorFactory);
+  d.handleEventsWith(delayedEventHandlerFromHelper).thenFactories(eventProcessorFactory);
 
   // Java: ensureTwoEventsProcessedAccordingToDependencies(countDownLatch, delayedEventHandler)
   std::vector<disruptor::dsl::stubs::DelayedEventHandler*> deps;
@@ -890,13 +889,10 @@ TEST(DisruptorTest, shouldBlockProducerUntilAllEventProcessorsHaveAdvanced) {
   disruptor::dsl::stubs::StubPublisher<SequencerT> stubPublisher(*ringBuffer);
   std::thread publisherThread([&] { stubPublisher.run(); });
 
-  // Give publisher thread time to start and publish events
-  // Producer should be able to publish 4 events (bufferSize = 4) before blocking
-  // Wait a bit longer to ensure producer thread has started and published events
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  // Give publisher thread time to start
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
   // Java: assertProducerReaches(stubPublisher, 4, true) - waits until >= 4, then checks strict equality
-  // Producer should be able to publish exactly 4 events before blocking (buffer is full)
   assertProducerReaches(stubPublisher, 4, true);
 
   delayedEventHandler.processEvent();

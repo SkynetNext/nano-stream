@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-#include <memory>
 
 #include "disruptor/dsl/ConsumerRepository.h"
 #include "tests/disruptor/support/DummyEventProcessor.h"
@@ -14,9 +13,7 @@ TEST(ConsumerRepositoryTest, shouldGetBarrierByHandler) {
   disruptor::dsl::stubs::SleepingEventHandler handler1;
   disruptor::support::DummySequenceBarrier barrier1;
 
-  // Wrap in shared_ptr with no-op deleter since processor1 is on stack
-  auto processorPtr = std::shared_ptr<disruptor::EventProcessor>(&processor1, [](disruptor::EventProcessor*){});
-  repo.add(processorPtr, handler1, &barrier1);
+  repo.add(processor1, handler1, &barrier1);
   EXPECT_EQ(repo.getBarrierFor(handler1), &barrier1);
 }
 
@@ -34,9 +31,7 @@ TEST(ConsumerRepositoryTest, shouldRetrieveEventProcessorForHandler) {
   processor1.run();
   disruptor::dsl::stubs::SleepingEventHandler handler1;
   disruptor::support::DummySequenceBarrier barrier1;
-  // Wrap in shared_ptr with no-op deleter since processor1 is on stack
-  auto processorPtr = std::shared_ptr<disruptor::EventProcessor>(&processor1, [](disruptor::EventProcessor*){});
-  repo.add(processorPtr, handler1, &barrier1);
+  repo.add(processor1, handler1, &barrier1);
   EXPECT_EQ(&repo.getEventProcessorFor(handler1), &processor1);
 }
 
