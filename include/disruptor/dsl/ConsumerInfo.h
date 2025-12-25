@@ -20,7 +20,8 @@ public:
   virtual BarrierPtrT getBarrier() = 0;
   virtual bool isEndOfChain() = 0;
 
-  virtual void start(ThreadFactory &threadFactory, std::latch *startupLatch = nullptr) = 0;
+  virtual void start(ThreadFactory &threadFactory,
+                     std::latch *startupLatch = nullptr) = 0;
   virtual void halt() = 0;
   virtual void join() = 0;
   virtual void markAsUsedInBarrier() = 0;
