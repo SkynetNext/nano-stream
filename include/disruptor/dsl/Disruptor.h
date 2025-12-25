@@ -49,6 +49,8 @@ public:
     // triggers std::terminate, so we must always join.
     try {
       halt();
+      // After halt(), we still need to join threads to avoid std::terminate
+      consumerRepository_.joinAll();
     } catch (...) {
       // Best-effort teardown; never throw from destructor.
     }
@@ -178,10 +180,7 @@ public:
     return ringBuffer_;
   }
 
-  void halt() {
-    consumerRepository_.haltAll();
-    consumerRepository_.joinAll();
-  }
+  void halt() { consumerRepository_.haltAll(); }
   void join() { consumerRepository_.joinAll(); }
 
   void shutdown() {
