@@ -10,6 +10,7 @@
 #include "EventProcessorInfo.h"
 #include "ThreadFactory.h"
 
+#include <latch>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -36,10 +37,15 @@ public:
     consumerInfos_.push_back(std::move(consumerInfo));
   }
 
-  void startAll(ThreadFactory &threadFactory) {
+  void startAll(ThreadFactory &threadFactory,
+                std::latch *startupLatch = nullptr) {
     for (auto &c : consumerInfos_) {
-      c->start(threadFactory);
+      c->start(threadFactory, startupLatch);
     }
+  }
+
+  int getProcessorCount() const {
+    return static_cast<int>(consumerInfos_.size());
   }
 
   void haltAll() {

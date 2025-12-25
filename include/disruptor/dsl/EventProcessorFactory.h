@@ -4,7 +4,6 @@
 // reference/disruptor/src/main/java/com/lmax/disruptor/dsl/EventProcessorFactory.java
 
 #include "../EventProcessor.h"
-#include "../RingBuffer.h"
 #include "../Sequence.h"
 
 #include <memory>

@@ -174,9 +174,9 @@ public:
   }
 
   // Start/stop lifecycle
-  std::shared_ptr<RingBufferT> start() {
+  std::shared_ptr<RingBufferT> start(std::latch *startupLatch = nullptr) {
     checkOnlyStartedOnce();
-    consumerRepository_.startAll(threadFactory_);
+    consumerRepository_.startAll(threadFactory_, startupLatch);
     return ringBuffer_;
   }
 
@@ -224,6 +224,10 @@ public:
 
   bool hasBacklog() {
     return consumerRepository_.hasBacklog(ringBuffer_->getCursor(), false);
+  }
+
+  int getProcessorCount() const {
+    return consumerRepository_.getProcessorCount();
   }
 
   // Core builder used by EventHandlerGroup
